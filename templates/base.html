@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AquaFeed Pro · {{ {'dashboard':'Monitoring Dashboard','control':'Feeder Control','history':'Feeding History','hardware':'Hardware Tests'}[page] }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css', v='2') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/' + page + '.css', v='2') }}">
+  <script src="{{ url_for('static', filename='js/common.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/' + page + '.js') }}" defer></script>
+</head>
+<body data-page="{{ page }}">
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-icon">≈</span><span>AquaFeed <b>Pro</b><small>SMART AQUACULTURE</small></span></a>
+    <div class="nav-label">WORKSPACE</div>
+    <nav aria-label="Primary navigation">
+      <a href="/" class="{{ 'active' if page == 'dashboard' }}"><span>▦</span> Monitoring Dashboard</a>
+      <a href="/control" class="{{ 'active' if page == 'control' }}"><span>⚙</span> Feeder Control</a>
+      <a href="/history" class="{{ 'active' if page == 'history' }}"><span>◷</span> Feeding History</a>
+      <a href="/hardware-test" class="{{ 'active' if page == 'hardware' }}"><span>&#9881;</span> Hardware Tests</a>
+    </nav>
+    <div class="sidebar-bottom"><div class="mini-wave">≈ ≈ ≈</div><strong>A little care. Every day.</strong><p>Consistent feeding for a thriving aquatic environment.</p><a href="/hardware-test">Open hardware diagnostics ↗</a></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span>Aquarium workspace <span class="slash">/</span> <b>{{ {'dashboard':'Overview','control':'Controls & schedule','history':'Activity & logs','hardware':'Hardware diagnostics'}[page] }}</b></span><span id="connection" class="badge neutral" role="status">Checking device…</span></header>
+    <main>
+      <div class="page-heading"><div><div class="eyebrow">AQUAFEED PRO</div><h1>{{ {'dashboard':'Monitoring Dashboard','control':'Feeder Control & Schedule','history':'Feeding History & Logs','hardware':'Hardware Tests'}[page] }}</h1><p>{{ {'hardware':'Check each component and review the response from your controller.','dashboard':'A clear view of your feeder, from the next meal to the last drop.','control':'Find the right rhythm for your fish. Fine-tune every feeding.','history':'Every feeding, every update. Your feeder’s activity in one place.'}[page] }}</p></div><div class="date" id="today"></div></div>
+      <div id="notice" class="notice" role="status" hidden></div>
+
+      {% block content %}{% endblock %}
+
+      <footer><span><span class="footer-dot"></span> AquaFeed Pro · Made for a healthy habitat</span><span id="last-update">Waiting for update</span></footer>
+    </main>
+  </div>
+</body>
+</html>

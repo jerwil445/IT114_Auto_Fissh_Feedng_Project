@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="history-toolbar"><div class="tabs" role="group" aria-label="Filter activity"><button class="selected" data-filter="all">All activity</button><button data-filter="feeding">Feedings</button><button data-filter="system">System logs</button></div><span class="muted">Newest first · <span class="timezone"></span></span></div>
+      <section class="card history-card"><div class="section-title"><h2>Activity feed</h2><span class="badge neutral">Recorded events</span></div><div id="history-list"></div><div class="load-more"><button id="load-more" class="button secondary">Load More History ↓</button></div></section>
+      <section class="supply" id="supply"><div class="supply-icon">▤</div><div><div class="eyebrow">KEEP THE GOOD ROUTINE GOING</div><h2 id="supply-title">Keep your feed supply topped up</h2><p>Check your stock of flakes and pellets before the hopper runs low.</p></div><button class="button secondary" id="supply-button">Supply checklist ↗</button></section>
+      <dialog id="supply-dialog"><h2>Feed supply checklist</h2><p>Check the feed your fish need before ordering from your usual supplier.</p><label class="check-label"><input type="checkbox"> Reorder fish flakes</label><label class="check-label"><input type="checkbox"> Reorder fish pellets</label><p class="footnote">No supplier is configured. This checklist does not place an order.</p><button class="button primary" id="close-supply">Done</button></dialog>
+{% endblock %}
