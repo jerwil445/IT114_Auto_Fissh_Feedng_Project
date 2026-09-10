@@ -6,6 +6,8 @@
 .hardware-card{display:flex;flex-direction:column;align-items:flex-start}
 .hardware-card .section-title{width:100%;flex-wrap:wrap}
 .hardware-card h2{font-size:16px}
+.hardware-connectivity{width:100%;padding:12px 0 4px}
+.hardware-connectivity .footnote{margin:7px 0 0;min-height:38px}
 .hardware-card .test-result{font-size:12px;line-height:1.6;overflow-wrap:anywhere;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;width:100%}
 .hardware-card button{margin-top:auto}
 .hardware-card .muted{min-height:40px}

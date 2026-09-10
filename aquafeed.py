@@ -3,13 +3,12 @@ import copy
 import json
 import math
 import os
-import sqlite3
 import threading
 import time
-from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from database import Database
+from serial_protocol import EMPTY_DISTANCE_CM, feed_percentage, parse_distance
 
 
 
@@ -18,8 +17,8 @@ DEFAULTS = {
     "angle": 90,
     "duration": 3,
     "full_distance": 3,
-    "empty_distance": 25,
-    "calibrated": False,
+    "empty_distance": EMPTY_DISTANCE_CM,
+    "calibrated": True,
     "slots": [
         {"id": "morning", "name": "Morning", "time": "08:00", "portion": "Morning Flakes", "enabled": True},
         {"id": "afternoon", "name": "Afternoon", "time": "13:00", "portion": "Afternoon Flakes", "enabled": True},
@@ -44,7 +43,10 @@ HARDWARE_TESTS = {
 
 class Feeder:
     def __init__(self, send, connection, database):
-        self.send = send
+        self.raw_send = send
+        self.alarm_lock = threading.RLock()
+        self.alarm_active = False
+        self.alarm_confirmed = None
         self.connection = connection
         self.database = str(database)
         zone_name = os.getenv("FEEDER_TIMEZONE", "Asia/Manila")
@@ -62,29 +64,27 @@ class Feeder:
         self.state = {"connected": False, "port": None, "operation": "Ready", "valve": "Unknown", "distance": None, "level": None, "updated_at": None}
         self.last_connection = None
         self.low = False
+        self.empty = False
         self.test_cancel = threading.Event()
         self.diagnostics = {"running": False, "results": {}, "current": None}
-        with self.db() as db:
-            db.execute("CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
-            db.execute("CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, kind TEXT NOT NULL, trigger TEXT, portion TEXT, status TEXT NOT NULL, message TEXT NOT NULL)")
-            db.execute("CREATE TABLE IF NOT EXISTS executions (key TEXT PRIMARY KEY)")
-            db.execute("INSERT OR IGNORE INTO settings VALUES (1, ?)", (json.dumps(DEFAULTS),))
+        self.store = Database(self.database)
+        self.store.initialize(DEFAULTS)
 
-    @contextmanager
     def db(self):
-        connection = sqlite3.connect(self.database, timeout=10)
-        try:
-            with connection:
-                yield connection
-        finally:
-            connection.close()
+        return self.store.connect()
 
     def now(self):
         return datetime.now(self.zone)
 
     def settings(self):
         with self.db() as db:
-            return json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()[0])
+            settings = json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()['value'])
+        # Apply the fixed empty threshold to previously saved configurations too.
+        settings["empty_distance"] = EMPTY_DISTANCE_CM
+        settings["calibrated"] = True
+        if not 0 <= settings["full_distance"] < EMPTY_DISTANCE_CM:
+            settings["full_distance"] = DEFAULTS["full_distance"]
+        return settings
 
     def log(self, kind, status, message, trigger=None, portion=None):
         with self.db() as db:
@@ -92,8 +92,7 @@ class Feeder:
 
     def history(self, before=None, limit=15, kind=None):
         with self.db() as db:
-            db.row_factory = sqlite3.Row
-            rows = db.execute("SELECT * FROM events WHERE (? IS NULL OR id < ?) AND (? IS NULL OR kind = ?) ORDER BY id DESC LIMIT ?", (before, before, kind, kind, limit + 1)).fetchall()
+            rows = db.execute("SELECT * FROM events WHERE (CAST(? AS BIGINT) IS NULL OR id < ?) AND (CAST(? AS TEXT) IS NULL OR kind = ?) ORDER BY id DESC LIMIT ?", (before, before, kind, kind, limit + 1)).fetchall()
         return {"events": [dict(row) for row in rows[:limit]], "has_more": len(rows) > limit}
 
     def save(self, data):
@@ -111,6 +110,9 @@ class Feeder:
             cleaned[key] = value
         if cleaned["full_distance"] >= cleaned["empty_distance"]:
             raise ValueError("Empty distance must be greater than full distance.")
+        if cleaned["empty_distance"] != EMPTY_DISTANCE_CM:
+            raise ValueError("The empty hopper distance is fixed at 20 cm.")
+        cleaned["calibrated"] = True
         slots = data.get("slots")
         if not isinstance(slots, list) or len(slots) > 12:
             raise ValueError("Use up to 12 feeding times.")
@@ -160,6 +162,44 @@ class Feeder:
     @staticmethod
     def acknowledged(response):
         return bool(response and response.strip()) and not any(word in response.upper() for word in ("ERROR", "FAIL", "UNKNOWN", "INVALID", "EMPTY", "UNSUPPORTED"))
+
+    def apply_alarm(self, distance):
+        """Reassert empty warnings; only a valid refill reading clears them."""
+        with self.alarm_lock:
+            if distance is not None:
+                empty = distance >= EMPTY_DISTANCE_CM
+            else:
+                empty = self.alarm_active
+            if empty:
+                commands = ("RED_ON", "BUZZER_ON")
+            elif self.alarm_active:
+                commands = ("RED_OFF", "BUZZER_OFF")
+            else:
+                return
+            confirmed = True
+            for command in commands:
+                try:
+                    confirmed = self.acknowledged(self.raw_send(command)) and confirmed
+                except Exception:
+                    confirmed = False
+            # Retry unconfirmed alarm clear on the next valid reading.
+            self.alarm_active = empty or not confirmed
+            self.alarm_confirmed = confirmed
+
+    def send(self, command):
+        with self.alarm_lock:
+            if command in ("RED_OFF", "BUZZER_OFF", "ALL_LED_OFF", "LCD_TEST"):
+                distance = parse_distance(self.raw_send("DISTANCE"))
+                self.apply_alarm(distance)
+                if distance is None or distance >= EMPTY_DISTANCE_CM or self.alarm_active:
+                    if command == "ALL_LED_OFF":
+                        for led in ("MORNING_OFF", "AFTERNOON_OFF", "NIGHT_OFF"):
+                            self.raw_send(led)
+                    return "ALARM_PROTECTED"
+            response = self.raw_send(command)
+            if command == "DISTANCE":
+                self.apply_alarm(parse_distance(response))
+            return response
 
     def begin_feed(self, trigger="Manual", portion="Manual portion", settings=None):
         if not self.feed_lock.acquire(blocking=False):
@@ -232,6 +272,7 @@ class Feeder:
                     self.diagnostics["results"][component] = {"status": "Testing", "message": "Waiting for controller response..."}
                 error = None
                 response = None
+                cleanup_response = None
                 try:
                     response = self.send(command)
                     if not self.acknowledged(response):
@@ -239,8 +280,8 @@ class Feeder:
                     if component == "sensor":
                         if not response.startswith("DISTANCE:"):
                             raise ValueError("Unexpected sensor response: " + response)
-                        value = float(response.split(":", 1)[1])
-                        if not math.isfinite(value) or value < 0:
+                        value = parse_distance(response)
+                        if value is None:
                             raise ValueError("Sensor returned no valid echo.")
                         response = f"Distance: {value:.1f} cm"
                     if component == "servo":
@@ -252,7 +293,8 @@ class Feeder:
                 finally:
                     if stop:
                         try:
-                            stopped = self.acknowledged(self.send(stop))
+                            cleanup_response = self.send(stop)
+                            stopped = self.acknowledged(cleanup_response)
                         except Exception:
                             stopped = False
                         if component == "servo":
@@ -260,7 +302,8 @@ class Feeder:
                                 self.state["valve"] = "Closed (commanded)" if stopped else "Unknown"
                         if not stopped:
                             error = (error + " " if error else "") + "Stop/off not confirmed. Check the hardware."
-                result = {"status": "Failed" if error else "Cancelled" if self.test_cancel.is_set() else "Acknowledged", "message": error or response}
+                protected = "ALARM_PROTECTED" in (response, cleanup_response)
+                result = {"status": "Failed" if error else "Cancelled" if self.test_cancel.is_set() else "Protected" if protected else "Acknowledged", "message": error or ("Automatic warning preserved; refill the hopper before testing alarm outputs or LCD." if protected else response)}
                 with self.state_lock:
                     self.diagnostics["results"][component] = result
                 failed = bool(error)
@@ -280,11 +323,9 @@ class Feeder:
                 if slot["enabled"] and slot["time"] == now.strftime("%H:%M"):
                     key = now.strftime("%Y-%m-%d") + ":" + slot["time"]
                     with self.db() as db:
-                        claimed = db.execute("INSERT OR IGNORE INTO executions VALUES(?)", (key,)).rowcount
+                        claimed = db.execute("INSERT INTO executions VALUES(?) ON CONFLICT (key) DO NOTHING", (key,)).rowcount
                     if claimed and not self.begin_feed("Automatic", slot["portion"], settings):
                         self.log("feeding", "Failed", "Skipped because another feeding was in progress.", "Automatic", slot["portion"])
-        if self.feed_lock.locked():
-            return
         connection = self.connection()
         connected = connection["connected"]
         if connected != self.last_connection:
@@ -293,22 +334,20 @@ class Feeder:
         distance = None
         if connected:
             response = self.send("DISTANCE")
-            try:
-                if response and response.startswith("DISTANCE:"):
-                    value = float(response.split(":", 1)[1])
-                    if math.isfinite(value) and value >= 0:
-                        distance = value
-            except ValueError:
-                pass
-        level = None
-        if distance is not None and settings["calibrated"]:
-            level = round(max(0, min(100, 100 * (settings["empty_distance"] - distance) / (settings["empty_distance"] - settings["full_distance"]))))
+            distance = parse_distance(response)
+        level = feed_percentage(distance, settings["full_distance"])
+        empty = distance >= EMPTY_DISTANCE_CM if distance is not None else None
         if level is not None:
-            if level < 20 and not self.low:
+            if empty and not self.empty:
+                self.log("system", "Warning", "FEED EMPTY — PLEASE REFILL. Hopper distance is 20 cm or more.")
+            elif not empty and self.empty:
+                self.log("system", "Info", f"Hopper refilled. Feed level is {level:g}%.")
+            elif level < 20 and not self.low:
                 self.log("system", "Warning", f"Low feed: hopper is at {level}%. Refill soon.")
             self.low = level < 20
+            self.empty = empty
         with self.state_lock:
-            self.state.update({**connection, "distance": distance, "level": level, "updated_at": self.now().isoformat()})
+            self.state.update({**connection, "distance": distance, "level": level, "hopper_empty": empty, "alarm_active": self.alarm_active, "alarm_confirmed": self.alarm_confirmed if connected else None, "updated_at": self.now().isoformat()})
             if not connected:
                 self.state["valve"] = "Unknown"
 
@@ -322,8 +361,8 @@ class Feeder:
                 except Exception:
                     # Keep monitoring alive after transient serial/database errors.
                     with self.state_lock:
-                        self.state.update(connected=False, distance=None, level=None, valve="Unknown")
-                time.sleep(2)
+                        self.state.update(connected=False, distance=None, level=None, hopper_empty=None, valve="Unknown")
+                time.sleep(0.5)
         self.worker = threading.Thread(target=run, daemon=True)
         self.worker.start()
 
@@ -331,7 +370,7 @@ class Feeder:
 def setup_aquafeed(app, send, connection):
     from pages import dashboard, control, history, hardware
 
-    database = os.getenv("AQUAFEED_DB", str(Path(app.root_path) / "aquafeed.sqlite3"))
+    database = os.getenv("AQUAFEED_DB") or os.getenv("DATABASE_URL", "postgresql://postgres@localhost:5432/aquafeed")
     feeder = Feeder(send, connection, database)
     for page in (dashboard, control, history, hardware):
         app.register_blueprint(page.create_blueprint(feeder))

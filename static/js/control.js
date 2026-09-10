@@ -12,7 +12,6 @@ function fillSettings(data) {
   $('duration').value = settings.duration;
   $('full-distance').value = settings.full_distance;
   $('empty-distance').value = settings.empty_distance;
-  $('calibrated').checked = settings.calibrated;
   $('angle-note').textContent = data.angle_supported ? 'The saved angle is sent to your controller before dispensing.' : 'Angle is saved as a preference. Your current firmware interface uses its own servo angle; an angle command must be configured to apply this setting.';
   slots = structuredClone(settings.slots);
   renderSlots();
@@ -21,7 +20,7 @@ function fillSettings(data) {
 $('settings-form').addEventListener('submit', async event => {
     event.preventDefault();
     if (!loadedSettings) return notice('Wait for settings to load before saving.', true);
-    const data = {automation:$('automation').checked, angle:Number($('angle').value), duration:Number($('duration').value), full_distance:Number($('full-distance').value), empty_distance:Number($('empty-distance').value), calibrated:$('calibrated').checked, slots};
+    const data = {automation:$('automation').checked, angle:Number($('angle').value), duration:Number($('duration').value), full_distance:Number($('full-distance').value), empty_distance:Number($('empty-distance').value), calibrated:true, slots};
     $('save').disabled = true;
     try {
       await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});

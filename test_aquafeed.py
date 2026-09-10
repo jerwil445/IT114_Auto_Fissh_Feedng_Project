@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 from flask import Flask
 from aquafeed import DEFAULTS, HARDWARE_TESTS, Feeder, setup_aquafeed
+from serial_protocol import feed_percentage, is_command_reply, parse_distance
 
 
 class FeederTests(unittest.TestCase):
@@ -83,22 +84,63 @@ class FeederTests(unittest.TestCase):
             restarted.tick()
             begin.assert_not_called()
 
-    def test_level_requires_calibration_and_warns_once(self):
-        self.send.return_value = 'DISTANCE:24'
-        self.feeder.tick()
-        self.assertIsNone(self.feeder.state['level'])
-        settings = copy.deepcopy(DEFAULTS)
-        settings['calibrated'] = True
-        self.feeder.save(settings)
+    def test_level_is_automatic_and_warns_once(self):
+        self.send.return_value = 'DISTANCE:19CM'
         self.feeder.tick()
         self.feeder.tick()
-        self.assertEqual(self.feeder.state['level'], 5)
+        self.feeder.tick()
+        self.assertEqual(self.feeder.state['level'], 5.9)
         warnings = [event for event in self.feeder.history()['events'] if 'Low feed' in event['message']]
         self.assertEqual(len(warnings), 1)
         self.connection.return_value = {'connected': False, 'port': None}
         self.feeder.tick()
         self.assertIsNone(self.feeder.state['distance'])
         self.assertIsNone(self.feeder.state['level'])
+
+    def test_distance_conversion_and_limits(self):
+        for distance, expected in [(0,100), (3,100), (11.5,50), (19,5.9), (20,0), (25,0)]:
+            self.assertEqual(feed_percentage(distance, 3), expected)
+        self.assertEqual(feed_percentage(12, 4), 50)
+        self.assertIsNone(feed_percentage(None, 3))
+
+    def test_distance_units_and_streamed_telemetry(self):
+        self.assertEqual(parse_distance('DISTANCE:15.0CM'), 15)
+        self.assertEqual(parse_distance('DISTANCE:15.0'), 15)
+        for response in ('DISTANCE:ERROR', 'DISTANCE:nanCM', 'DISTANCE:-1CM', 'SENSOR_ERROR'):
+            self.assertIsNone(parse_distance(response))
+        for response in ('DISTANCE:20.0CM', 'FEED_LEVEL:0%', 'FEED_STATUS:EMPTY', 'SENSOR_ERROR', 'ARDUINO_READY'):
+            self.assertFalse(is_command_reply('SERVO_STOP', response))
+        self.assertTrue(is_command_reply('SERVO_STOP', 'SERVO_STOPPED'))
+        self.assertTrue(is_command_reply('DISTANCE', 'DISTANCE:ERROR'))
+
+    def test_empty_and_refill_transitions(self):
+        for value in (20, 25, 20):
+            self.send.return_value = f'DISTANCE:{value}CM'
+            self.feeder.tick()
+            self.assertEqual(self.feeder.state['level'], 0)
+            self.assertTrue(self.feeder.state['hopper_empty'])
+        self.send.return_value = 'DISTANCE:3CM'
+        self.feeder.tick()
+        self.assertEqual(self.feeder.state['level'], 100)
+        self.assertFalse(self.feeder.state['hopper_empty'])
+        events = self.feeder.history()['events']
+        self.assertEqual(sum('FEED EMPTY' in e['message'] for e in events), 1)
+        self.assertEqual(sum('Hopper refilled' in e['message'] for e in events), 1)
+        commands = [call.args[0] for call in self.send.call_args_list]
+        self.assertIn('RED_ON', commands)
+        self.assertIn('BUZZER_ON', commands)
+        self.assertEqual(commands[-2:], ['RED_OFF', 'BUZZER_OFF'])
+
+    def test_old_settings_use_fixed_empty_threshold(self):
+        import json
+        settings = copy.deepcopy(DEFAULTS)
+        settings.update(empty_distance=25, calibrated=False)
+        with self.feeder.db() as db:
+            db.execute('UPDATE settings SET value=? WHERE id=1', (json.dumps(settings),))
+        self.assertEqual(self.feeder.settings()['empty_distance'], 20)
+        self.assertTrue(self.feeder.settings()['calibrated'])
+        with self.assertRaises(ValueError):
+            self.feeder.save(settings)
 
     def test_nonfinite_sensor_readings_are_unavailable(self):
         for response in ('DISTANCE:nan', 'DISTANCE:inf', 'DISTANCE:-1', 'ERROR', ''):
@@ -142,10 +184,10 @@ class FeederTests(unittest.TestCase):
     def test_cancellation_sends_off_command(self):
         def reply(command):
             self.feeder.test_cancel.set()
-            return 'OK'
+            return 'DISTANCE:3CM' if command == 'DISTANCE' else 'OK'
         self.send.side_effect = reply
         self.run_diagnostics(['buzzer', 'servo'])
-        self.assertEqual([call.args[0] for call in self.send.call_args_list], ['BUZZER_ON', 'BUZZER_OFF'])
+        self.assertEqual([call.args[0] for call in self.send.call_args_list], ['BUZZER_ON', 'DISTANCE', 'BUZZER_OFF'])
         self.assertEqual(self.feeder.diagnostics['results']['buzzer']['status'], 'Cancelled')
         self.assertEqual(self.feeder.diagnostics['results']['servo']['status'], 'Skipped')
 
@@ -160,6 +202,42 @@ class FeederTests(unittest.TestCase):
         self.feeder.feed_lock.acquire()
         self.assertFalse(self.feeder.begin_test('servo'))
         self.feeder.feed_lock.release()
+
+    def test_empty_warning_cannot_be_overridden(self):
+        self.send.side_effect = lambda command: 'DISTANCE:20CM' if command == 'DISTANCE' else 'OK'
+        for command in ('RED_OFF', 'BUZZER_OFF', 'ALL_LED_OFF', 'LCD_TEST'):
+            self.send.reset_mock()
+            self.assertEqual(self.feeder.send(command), 'ALARM_PROTECTED')
+            commands = [call.args[0] for call in self.send.call_args_list]
+            self.assertNotIn(command, commands)
+            self.assertIn('RED_ON', commands)
+            self.assertIn('BUZZER_ON', commands)
+
+    def test_invalid_reading_does_not_clear_warning(self):
+        self.feeder.alarm_active = True
+        self.send.side_effect = lambda command: 'DISTANCE:ERROR' if command == 'DISTANCE' else 'OK'
+        self.assertEqual(self.feeder.send('BUZZER_OFF'), 'ALARM_PROTECTED')
+        self.assertNotIn('BUZZER_OFF', [call.args[0] for call in self.send.call_args_list])
+        self.assertTrue(self.feeder.alarm_active)
+
+    def test_monitoring_runs_during_tests_and_feeding(self):
+        self.send.side_effect = lambda command: 'DISTANCE:21CM' if command == 'DISTANCE' else 'OK'
+        self.feeder.feed_lock.acquire()
+        try:
+            self.feeder.tick()
+            self.assertTrue(self.feeder.state['hopper_empty'])
+            self.assertTrue(self.feeder.state['alarm_confirmed'])
+            self.assertEqual(self.feeder.state['level'], 0)
+        finally:
+            self.feeder.feed_lock.release()
+
+    def test_failed_alarm_command_is_retried(self):
+        self.send.side_effect = lambda command: 'DISTANCE:20CM' if command == 'DISTANCE' else None
+        self.feeder.tick()
+        self.assertFalse(self.feeder.state['alarm_confirmed'])
+        self.send.side_effect = lambda command: 'DISTANCE:20CM' if command == 'DISTANCE' else 'OK'
+        self.feeder.tick()
+        self.assertTrue(self.feeder.state['alarm_confirmed'])
 
     def test_pages_and_api_validation(self):
         app = Flask(__name__)

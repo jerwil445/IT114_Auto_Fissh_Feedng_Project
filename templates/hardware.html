@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="card hardware-intro">
-        <div><div class="eyebrow">COMPONENT DIAGNOSTICS</div><h2>Give your feeder a checkup</h2><p class="muted">Run each test individually, or test all components in sequence.</p><p class="footnote">Tests flash the LEDs, sound the buzzer, rotate the servo for 3 seconds, read the sensor, and test the LCD. The servo test may dispense food. LEDs, buzzer, and servo receive an off/stop command after testing.</p></div>
+        <div><div class="eyebrow">COMPONENT DIAGNOSTICS</div><h2>Give your feeder a checkup</h2><p class="muted">Run each test individually, or test all components in sequence.</p><p class="footnote">Tests flash the LEDs, sound the buzzer, rotate the servo for 3 seconds, read the sensor, and test the LCD. The servo test may dispense food. Test outputs receive off/stop commands after testing. Empty-hopper warnings stay on; alarm-off and LCD tests are protected until a valid refill reading is received.</p></div>
         <div class="hardware-actions"><button class="button primary" id="test-all" data-test="all" disabled>Test All Hardware</button><button class="button secondary" id="cancel-tests" disabled>Stop Tests</button></div>
       </section>
       <div class="notice" id="test-progress" role="status">Waiting for device status...</div>
@@ -19,7 +19,7 @@
           ('lcd', 'LCD Display', 'Show the firmware test message on the LCD.'),
           ('leds', 'All LEDs', 'Illuminate every LED together for 1 second.')
         ] %}
-        <section class="card hardware-card"><div class="section-title"><h2>{{ name }}</h2><span class="badge neutral" id="test-status-{{ key }}">Not tested</span></div><p class="muted">{{ description }}</p><p class="test-result" id="test-result-{{ key }}" aria-live="polite">No test result yet.</p><button class="button secondary" data-test="{{ key }}" disabled>Test {{ name }}</button></section>
+        <section class="card hardware-card"><div class="section-title"><h2>{{ name }}</h2><span class="badge neutral" id="test-status-{{ key }}">Not tested</span></div><div class="hardware-connectivity" role="status"><span class="badge neutral" data-hardware-connection="{{ key }}">Checking connection...</span><p class="footnote" data-connection-detail="{{ key }}">Waiting for device update.</p></div><p class="muted">{{ description }}</p><p class="test-result" id="test-result-{{ key }}" aria-live="polite">No test result yet.</p><button class="button secondary" data-test="{{ key }}" disabled>Test {{ name }}</button></section>
         {% endfor %}
       </div>
       <p class="footnote">Test results are also recorded in <a href="/history">Feeding History &amp; Logs</a>. Tests continue on the server if you leave this page.</p>

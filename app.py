@@ -4,6 +4,7 @@ import time
 
 import serial
 from flask import Flask, jsonify
+from serial_protocol import is_command_reply, parse_distance
 
 app = Flask(__name__)
 
@@ -96,10 +97,13 @@ def _send_command(command):
 
             arduino.flush()
 
-            response = arduino.readline().decode(
-                "utf-8",
-                errors="ignore"
-            ).strip()
+            response = None
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                line = arduino.readline().decode("utf-8", errors="ignore").strip()
+                if is_command_reply(command, line):
+                    response = line
+                    break
 
             print(
                 "Command:",
@@ -202,7 +206,7 @@ def hardware_command(command):
         }), 400
 
 
-    response = send_command(command)
+    response = feeder.send(command)
 
 
     if response is None:
@@ -227,7 +231,7 @@ def hardware_command(command):
 @app.route("/distance")
 def distance():
 
-    response = send_command(
+    response = feeder.send(
         "DISTANCE"
     )
 
@@ -246,9 +250,9 @@ def distance():
             "DISTANCE:"
         ):
 
-            value = float(
-                response.split(":")[1]
-            )
+            value = parse_distance(response)
+            if value is None:
+                return jsonify(success=False, message="No valid sensor reading.")
 
             return jsonify({
                 "success": True,
@@ -285,8 +289,8 @@ if __name__ == "__main__":
     feeder.start()
 
     app.run(
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=5000,
-        debug=True,
+        debug=False,
         use_reloader=False
     )

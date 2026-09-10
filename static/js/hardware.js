@@ -1,5 +1,34 @@
 let testRequestPending = false;
+function renderConnections(data, stale = false) {
+  document.querySelectorAll('[data-hardware-connection]').forEach(badge => {
+    const key = badge.dataset.hardwareConnection;
+    const detail = document.querySelector(`[data-connection-detail="${key}"]`);
+    let label, description, color;
+    if (!data || stale) {
+      label = 'Connection unknown';
+      description = data ? 'Waiting for a fresh device reading.' : 'Server unavailable. Retrying automatically.';
+      color = 'neutral';
+    } else if (!data.connected) {
+      label = 'Arduino disconnected';
+      description = 'Hardware unavailable. Check USB connection and power.';
+      color = 'bad';
+    } else if (key === 'sensor') {
+      const responding = Number.isFinite(data.distance);
+      label = responding ? 'Sensor responding' : 'Sensor reading unavailable';
+      description = responding ? `Latest reading: ${data.distance.toFixed(1)} cm` : 'Arduino connected, but no valid sensor echo was received.';
+      color = responding ? 'good' : 'warn';
+    } else {
+      label = 'Arduino connected';
+      description = key === 'connection' ? `Serial port: ${data.port || 'available'}` : 'Ready to test. Individual component wiring is not detected.';
+      color = 'good';
+    }
+    badge.textContent = label;
+    badge.className = 'badge ' + color;
+    detail.textContent = description;
+  });
+}
 function renderHardware(data, stale) {
+  renderConnections(data, stale);
   const tests = data.diagnostics;
   const busy = tests.running || data.operation === 'Dispensing' || testRequestPending;
   document.querySelectorAll('[data-test]').forEach(button => {
@@ -38,6 +67,7 @@ document.querySelectorAll('[data-test]').forEach(button => button.addEventListen
 
 function onMonitor(data, stale) { renderHardware(data, stale); }
 function onMonitorError() {
+  renderConnections(null);
   document.querySelectorAll('[data-test]').forEach(button => button.disabled = true);
   $('test-progress').textContent = 'Server unavailable. Test progress is unknown; reconnecting automatically.';
 }
