@@ -65,6 +65,9 @@ class Feeder:
         self.last_connection = None
         self.low = False
         self.empty = False
+        self.lcd_idle_command = None
+        self.lcd_idle_sent = 0
+        self.lcd_idle_error = False
         self.test_cancel = threading.Event()
         self.diagnostics = {"running": False, "results": {}, "current": None}
         self.store = Database(self.database)
@@ -145,6 +148,11 @@ class Feeder:
     def snapshot(self):
         settings = self.settings()
         now = self.now()
+        prefix = 'completed:' + now.strftime('%Y-%m-%d') + ':'
+        with self.db() as db:
+            completed = {row['key'][len(prefix):] for row in db.execute('SELECT key FROM executions WHERE key LIKE ?', (prefix + '%',)).fetchall()}
+        for slot in settings['slots']:
+            slot['completed_today'] = slot['id'] in completed
         upcoming = []
         if settings["automation"]:
             for slot in settings["slots"]:
@@ -162,6 +170,33 @@ class Feeder:
     @staticmethod
     def acknowledged(response):
         return bool(response and response.strip()) and not any(word in response.upper() for word in ("ERROR", "FAIL", "UNKNOWN", "INVALID", "EMPTY", "UNSUPPORTED"))
+
+    def lcd_message(self, command):
+        try:
+            response = self.send(command)
+            if not response:
+                response = self.send(command)
+            return response == 'LCD_OK'
+        except Exception:
+            return False
+
+    @staticmethod
+    def lcd_label(name):
+        return ''.join(c for c in name.upper() if c.isascii() and (c.isalnum() or c == ' '))[:10] or 'FEED'
+
+    def idle_lcd_command(self):
+        data = self.snapshot()
+        upcoming = data['next']
+        if not upcoming:
+            return 'LCD_IDLE:FEEDER READY|AUTO PAUSED' if not data['settings']['automation'] else 'LCD_IDLE:FEEDER READY|NO SCHEDULE'
+        at = datetime.fromisoformat(upcoming['at'])
+        clock = at.strftime('%I:%M %p')
+        enabled = [slot for slot in data['settings']['slots'] if slot['enabled']]
+        if enabled and all(slot['completed_today'] for slot in enabled):
+            return 'LCD_IDLE:ALL FEEDS DONE|NEXT: TOM ' + clock.replace(' ', '')
+        label = self.lcd_label(upcoming['name'])
+        tomorrow = at.date() > self.now().date()
+        return f"LCD_IDLE:NEXT: {label}|{'TOM ' if tomorrow else 'AT '}{clock}"
 
     def apply_alarm(self, distance):
         """Reassert empty warnings; only a valid refill reading clears them."""
@@ -197,6 +232,8 @@ class Feeder:
                             self.raw_send(led)
                     return "ALARM_PROTECTED"
             response = self.raw_send(command)
+            if command == 'LCD_TEST':
+                self.lcd_idle_command = None
             if command == "DISTANCE":
                 self.apply_alarm(parse_distance(response))
             return response
@@ -213,6 +250,9 @@ class Feeder:
     def dispense(self, trigger, portion, settings):
         started = False
         error = None
+        slot = settings.get('_feeding_slot')
+        if slot:
+            self.lcd_message('LCD_ACTIVE:' + self.lcd_label(slot['name']))
         try:
             if self.angle_command:
                 response = self.send(self.angle_command.format(angle=settings["angle"]))
@@ -241,6 +281,13 @@ class Feeder:
             with self.state_lock:
                 self.state["operation"] = "Failed" if error else "Completed"
             try:
+                if slot:
+                    if not error:
+                        with self.db() as db:
+                            db.execute('INSERT INTO executions(key) VALUES(?) ON CONFLICT (key) DO NOTHING', (f"completed:{settings['_feeding_day']}:{slot['id']}",))
+                    command = ('LCD_DONE:' if not error else 'LCD_FAIL:') + self.lcd_label(slot['name'])
+                    if not self.lcd_message(command):
+                        self.log('system', 'Warning', 'LCD update was not confirmed. Upload the current arduino_code.c++ sketch; feeding was not retried.')
                 self.log("feeding", "Failed" if error else "Successful", error or "Dispense and stop acknowledged by controller; food delivery is not independently measured.", trigger, portion)
             finally:
                 self.feed_lock.release()
@@ -324,7 +371,8 @@ class Feeder:
                     key = now.strftime("%Y-%m-%d") + ":" + slot["time"]
                     with self.db() as db:
                         claimed = db.execute("INSERT INTO executions VALUES(?) ON CONFLICT (key) DO NOTHING", (key,)).rowcount
-                    if claimed and not self.begin_feed("Automatic", slot["portion"], settings):
+                    feeding_settings = {**settings, '_feeding_slot': dict(slot), '_feeding_day': now.strftime('%Y-%m-%d')}
+                    if claimed and not self.begin_feed("Automatic", slot["portion"], feeding_settings):
                         self.log("feeding", "Failed", "Skipped because another feeding was in progress.", "Automatic", slot["portion"])
         connection = self.connection()
         connected = connection["connected"]
@@ -349,7 +397,19 @@ class Feeder:
         with self.state_lock:
             self.state.update({**connection, "distance": distance, "level": level, "hopper_empty": empty, "alarm_active": self.alarm_active, "alarm_confirmed": self.alarm_confirmed if connected else None, "updated_at": self.now().isoformat()})
             if not connected:
+                self.lcd_idle_command = None
                 self.state["valve"] = "Unknown"
+        if connected and not self.feed_lock.locked():
+            command = self.idle_lcd_command()
+            if command != self.lcd_idle_command or time.monotonic() - self.lcd_idle_sent >= 10:
+                confirmed = self.lcd_message(command)
+                with self.state_lock:
+                    self.state['lcd_schedule_confirmed'] = confirmed
+                if not confirmed and not self.lcd_idle_error:
+                    self.log('system', 'Warning', 'Next-feeding LCD screen was not acknowledged. Upload the current arduino_code.c++ sketch and restart Python; LCD_TEST alone does not display the schedule.')
+                self.lcd_idle_error = not confirmed
+                self.lcd_idle_command = command
+                self.lcd_idle_sent = time.monotonic()
 
     def start(self):
         if self.worker and self.worker.is_alive():

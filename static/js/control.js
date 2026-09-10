@@ -1,3 +1,16 @@
+// Generate UUID v4 - works in all browsers
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for older browsers
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 let loadedSettings = false;
 let slots = [];
 function renderSlots() {
@@ -41,7 +54,7 @@ $('settings-form').addEventListener('submit', async event => {
   });
   $('add-slot').addEventListener('click', () => {
     if (!loadedSettings || slots.length >= 12) return;
-    slots.push({id:crypto.randomUUID(), name:'Extra feeding', time:'', portion:'Fish feed', enabled:true});
+    slots.push({id:generateUUID(), name:'Extra feeding', time:'', portion:'Fish feed', enabled:true});
     renderSlots();
     $('schedule-editor').querySelector('.editor-row:last-child input[data-field="name"]').focus();
   });

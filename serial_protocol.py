@@ -34,4 +34,6 @@ def is_command_reply(command, response):
         return command == "FEED_LEVEL"
     if response.startswith("FEED_STATUS:") or response == "SENSOR_ERROR":
         return False
+    if command.startswith(('LCD_IDLE:', 'LCD_ACTIVE:', 'LCD_DONE:', 'LCD_FAIL:')):
+        return response == 'LCD_OK' or response.startswith(('UNKNOWN_COMMAND:', 'ERROR:'))
     return True

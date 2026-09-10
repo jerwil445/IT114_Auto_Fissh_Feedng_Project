@@ -44,3 +44,6 @@ Validation: `python -m unittest -v test_aquafeed` and `node --check` for each fi
 5. Start the app with `python app.py`.
 
 `schema.sql` defines the PostgreSQL tables. The importer preserves event IDs and execution records, resets the event ID sequence, refuses populated targets, and never modifies the SQLite source. `timestamp` remains ISO 8601 text (including timezone) and settings remain JSON text so the existing API responses are unchanged. The schema is initialized automatically but the PostgreSQL database itself must already exist when the web app starts.
+
+
+LCD schedule screens: copy arduino_code.c++ into Arduino IDE and upload. Python sends the next enabled feeding and time, dispensing state, and successful completion state. Arduino displays completion for 5 seconds without blocking sensor monitoring, then returns to the next schedule. After all enabled slots succeed, it displays ALL FEEDS DONE and tomorrow's first time. Completion markers are date-scoped, so they reset at local midnight without deleting history. Keep Python running for schedule updates. Empty-hopper and sensor alerts override schedule screens. LCD communication failures do not retry feeding.

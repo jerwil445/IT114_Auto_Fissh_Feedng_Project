@@ -239,6 +239,41 @@ class FeederTests(unittest.TestCase):
         self.feeder.tick()
         self.assertTrue(self.feeder.state['alarm_confirmed'])
 
+    def test_lcd_next_feeding_and_daily_reset(self):
+        settings = copy.deepcopy(DEFAULTS)
+        settings['automation'] = True
+        self.feeder.save(settings)
+        moment = datetime(2026, 9, 10, 7, 0, tzinfo=self.feeder.zone)
+        with patch.object(self.feeder, 'now', return_value=moment):
+            self.assertEqual(self.feeder.idle_lcd_command(), 'LCD_IDLE:NEXT: MORNING|AT 08:00 AM')
+        with self.feeder.db() as db:
+            for slot in settings['slots']:
+                db.execute('INSERT INTO executions(key) VALUES(?)', ('completed:2026-09-10:' + slot['id'],))
+        with patch.object(self.feeder, 'now', return_value=moment.replace(hour=19)):
+            self.assertEqual(self.feeder.idle_lcd_command(), 'LCD_IDLE:ALL FEEDS DONE|NEXT: TOM 08:00AM')
+        with patch.object(self.feeder, 'now', return_value=moment.replace(day=11)):
+            self.assertEqual(self.feeder.idle_lcd_command(), 'LCD_IDLE:NEXT: MORNING|AT 08:00 AM')
+
+    def test_lcd_dispensing_completion_and_failure(self):
+        settings = copy.deepcopy(DEFAULTS)
+        settings.update(_feeding_slot=settings['slots'][0], _feeding_day=self.feeder.now().strftime('%Y-%m-%d'))
+        self.send.side_effect = lambda command: 'LCD_OK' if command.startswith('LCD_') else 'OK'
+        self.feeder.feed_lock.acquire()
+        with patch('aquafeed.time.sleep'):
+            self.feeder.dispense('Automatic', 'Morning Flakes', settings)
+        commands = [call.args[0] for call in self.send.call_args_list]
+        self.assertEqual(commands, ['LCD_ACTIVE:MORNING', 'SERVO_ROTATE', 'SERVO_STOP', 'LCD_DONE:MORNING'])
+        self.assertTrue(self.feeder.snapshot()['settings']['slots'][0]['completed_today'])
+        self.send.reset_mock()
+        self.send.side_effect = lambda command: None if command == 'SERVO_ROTATE' else 'LCD_OK' if command.startswith('LCD_') else 'OK'
+        self.feeder.feed_lock.acquire()
+        self.feeder.dispense('Automatic', 'Morning Flakes', settings)
+        self.assertEqual(self.send.call_args.args[0], 'LCD_FAIL:MORNING')
+
+    def test_lcd_reply_filter(self):
+        self.assertTrue(is_command_reply('LCD_DONE:MORNING', 'LCD_OK'))
+        self.assertFalse(is_command_reply('LCD_DONE:MORNING', 'SERVO_STOPPED'))
+
     def test_pages_and_api_validation(self):
         app = Flask(__name__)
         with patch.dict('os.environ', {'AQUAFEED_DB':str(self.database)}):
