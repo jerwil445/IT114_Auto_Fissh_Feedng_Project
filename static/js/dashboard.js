@@ -1,3 +1,19 @@
+function renderHopper(level) {
+  const hopperLevel = Number.isFinite(level) ? Math.max(0, Math.min(100, level)) : null;
+  const meter = $('level-meter');
+  $('level').textContent = hopperLevel === null ? '--' : Number(hopperLevel.toFixed(1));
+  $('level-bar').style.height = `${hopperLevel ?? 0}%`;
+  meter.classList.toggle('hopper-low', hopperLevel !== null && hopperLevel < 20);
+  meter.classList.toggle('hopper-unavailable', hopperLevel === null);
+  if (hopperLevel !== null) {
+    meter.setAttribute('aria-valuenow', hopperLevel);
+    meter.setAttribute('aria-valuetext', `${hopperLevel}% full`);
+  } else {
+    meter.removeAttribute('aria-valuenow');
+    meter.setAttribute('aria-valuetext', 'Sensor reading unavailable');
+  }
+}
+
 function countdown() {
   if (!$('countdown')) return;
   if (!monitor?.next) {
@@ -13,12 +29,7 @@ function renderDashboard(data) {
   $('operation-detail').textContent = !data.connected ? 'Connect your Arduino to resume monitoring and feeding.' : data.operation === 'Failed' ? 'The last feeding needs attention. Check the activity log.' : data.operation === 'Dispensing' ? 'Your feeder is dispensing a portion. The stop command follows automatically.' : 'Your feeder is connected. A healthy routine starts here.';
   $('next-feeding').textContent = data.next ? `${formatDate(data.next.at)} · ${data.next.name}` : 'No automatic feeding scheduled';
   $('next-portion').textContent = data.next ? data.next.portion : 'Enable automation in Feeder Control';
-  $('level').textContent = data.level ?? '—';
-  $('level-bar').style.width = `${data.level ?? 0}%`;
-  $('level-bar').style.background = data.level !== null && data.level < 20 ? '#dba348' : '#39a27d';
-  if (data.level !== null) $('level-meter').setAttribute('aria-valuenow', data.level);
-  else $('level-meter').removeAttribute('aria-valuenow');
-  $('level-label').textContent = data.level === null ? 'Sensor reading unavailable' : data.hopper_empty ? 'FEED EMPTY - PLEASE REFILL' : `${data.level < 20 ? 'Low - Refill soon' : data.level < 70 ? 'Medium - Supply available' : 'Full - Supply available'} (estimated)`;
+  renderHopper(data.level);
   $('distance').textContent = data.distance === null ? '—' : data.distance.toFixed(1);
   $('sensor-status').textContent = data.distance === null ? 'No valid sensor response' : 'Live reading from controller';
   $('valve').textContent = data.valve;
@@ -33,17 +44,35 @@ function renderDashboard(data) {
   countdown();
 }
 
+let dashboardFeedPending = false;
+$('dashboard-feed-now').addEventListener('click', async () => {
+  dashboardFeedPending = true;
+  $('dashboard-feed-now').disabled = true;
+  $('dashboard-feed-now').textContent = 'Starting...';
+  try {
+    const result = await api('/api/feed', {method:'POST'});
+    notice(result.message);
+  } catch (error) {
+    notice(error.message, true);
+  } finally {
+    dashboardFeedPending = false;
+    // The next status update determines whether feeding can be started again.
+  }
+});
+
 function onMonitor(data, stale) {
+  const feeding = data.operation === 'Dispensing';
+  $('dashboard-feed-now').disabled = dashboardFeedPending || stale || !data.connected || feeding || data.diagnostics.running;
+  $('dashboard-feed-now').textContent = dashboardFeedPending ? 'Starting...' : feeding ? 'Dispensing...' : 'Feed Now';
   renderDashboard(stale ? {...data, connected:false, distance:null, level:null, hopper_empty:null, valve:'Unknown'} : data);
 }
 function onMonitorError() {
+  $('dashboard-feed-now').disabled = true;
+  $('dashboard-feed-now').textContent = 'Feed Now';
   $('operation').textContent = 'Connection unknown';
   $('operation-detail').textContent = 'The server is unavailable. Reconnecting automatically.';
   $('distance').textContent = '--';
-  $('level').textContent = '--';
-  $('level-bar').style.width = '0%';
-  $('level-meter').removeAttribute('aria-valuenow');
-  $('level-label').textContent = 'Live reading unavailable';
+  renderHopper(null);
   $('sensor-status').textContent = 'Live reading unavailable';
   $('valve').textContent = 'Unknown';
 }

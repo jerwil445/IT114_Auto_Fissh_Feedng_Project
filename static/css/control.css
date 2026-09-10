@@ -14,7 +14,8 @@
 .editor-row:first-child{margin-top:20px}
 .editor-row .switch{margin-bottom:8px}
 .editor-row label,.config label{font-size:12px;font-weight:600;display:block;margin-bottom:8px}
-.delete{border:0;background:#fff0ec;color:#b45848;border-radius:7px;padding:12px 8px;font-size:11px;margin-bottom:0}
+.editor-row label small{display:block;font-size:10px;font-weight:400;color:var(--muted);margin-top:3px}
+.delete{border:0;background:#fff0ec;color:#b45848;border-radius:7px;padding:12px 8px;font-size:11px;margin-bottom:0}\ninput.error{border-color:#d9534f !important;background-color:#fff5f5 !important}\n.error-text{display:block;color:#ff0000;font-size:10px;margin-top:4px;font-weight:600}
 .config .two-column{margin-top:25px;gap:25px 40px}
 .config output{float:right;background:#eaf5ee;color:var(--teal);padding:3px 7px;border-radius:5px}
 .range-labels{display:flex;justify-content:space-between;color:var(--muted);font-size:10px}

@@ -59,3 +59,28 @@ h1,h2,h3,.brand,.metric{font-family:Manrope,Arial,sans-serif}
 .card-label{font-size:11px}
 .metric.valve{font-size:20px}
 }
+
+/* Vertical hopper gauge inspired by the supplied reference. */
+.metrics{align-items:stretch;grid-auto-rows:1fr}
+.metrics>.card{display:flex;flex-direction:column;min-width:0}
+.metrics>.card>.card-foot{margin-top:auto;padding-top:16px}
+.metrics>.card>.muted{margin-bottom:18px}
+.hopper-card{min-width:0}
+.hopper-tank{position:relative;width:min(100%,164px);height:224px;margin:18px auto 14px;background:#ffffff;border:2px solid #dbe7e2;border-radius:26px;box-shadow:inset 0 0 18px #087f7308;isolation:isolate;overflow:hidden}
+.hopper-interior{position:absolute;inset:9px 9px 9px 9px;border-radius:18px;overflow:hidden}
+.hopper-fill{position:absolute;bottom:0;left:0;width:100%;height:0;border-radius:16px 16px 13px 13px;background:radial-gradient(circle,#94ffec66 1.1px,transparent 1.6px) 0 0/8px 8px,linear-gradient(180deg,#16dded 0%,#00bbbf 36%,#008477 100%);box-shadow:0 -3px 13px #08e9eb55,inset 0 4px 8px #c2ffff80;transition:height .7s ease,background .3s}
+.hopper-fill:before{content:'';position:absolute;inset:0 0 auto;height:9px;background:linear-gradient(180deg,#a4ffff70,transparent);border-radius:50%}
+.hopper-reading{position:absolute;inset:0 15px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#123e3b;z-index:2;text-shadow:0 1px 3px #ffffff80;pointer-events:none}
+.hopper-percent{font-family:Manrope,'Segoe UI',sans-serif;font-size:34px;line-height:1.1;font-weight:800;letter-spacing:-1.5px;font-variant-numeric:tabular-nums}
+.hopper-unit{font-size:26px;letter-spacing:-1px}
+.hopper-scale{position:absolute;inset:17px 4px 17px auto;display:flex;flex-direction:column;justify-content:space-between;color:#526b66;font-size:8px;text-align:right;z-index:3}
+.hopper-scale span:before{content:'';display:inline-block;width:4px;height:1px;background:#526b6680;vertical-align:middle;margin-right:2px}
+.hopper-low .hopper-fill{background:radial-gradient(circle,#ffe4a366 1.1px,transparent 1.6px) 0 0/8px 8px,linear-gradient(#f8bd55,#a65d13);box-shadow:0 -3px 13px #ffb94033}
+.hopper-unavailable .hopper-reading{color:#667c75}
+
+
+
+
+@media(max-width:520px){.hopper-tank{height:205px;border-radius:22px}.hopper-percent{font-size:29px}.hopper-unit{font-size:22px}.hopper-scale{font-size:7px}}
+@media(prefers-reduced-motion:reduce){.hopper-fill{transition:none}}
+.dashboard-feed-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
