@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #050505;
+    color: #fafafa;
+    overflow-x: hidden;
+  }
+}
+
+.section-title, .section-copy, .section-nav, .section-brand {
+  font-family: 'Manrope', sans-serif;
+}

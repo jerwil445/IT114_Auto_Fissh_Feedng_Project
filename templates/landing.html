@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AquaFeed Pro makes aquarium feeding simple. Monitor your hopper, set feeding schedules, and manage your feeder in one place.">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>AquaFeed Pro — A healthy routine, every day</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+  <script src="{{ url_for('static', filename='js/landing.js') }}" defer></script>
+</head>
+<body>
+  <section id="hero-section" class="hero-section">
+    <div class="hero-video-container">
+      <video id="hero-background-video" class="hero-video" autoplay muted loop playsinline preload="metadata" poster="{{ url_for('static', filename='media/aquafeed-poster.jpg') }}" aria-hidden="true">
+        <source src="{{ url_for('static', filename='media/aquafeed-background.mp4') }}" type="video/mp4">
+      </video>
+    </div>
+    <header class="hero-header">
+      <a href="/" class="section-brand brand-link" aria-label="AquaFeed Pro home"><span class="brand-dot-container"><span class="brand-dot"></span></span><span class="brand-name">AquaFeed <b>Pro</b></span></a>
+      <nav class="section-nav nav-links" aria-label="Primary navigation"><a href="#features" class="nav-link">Features</a><a href="#how-it-works" class="nav-link">How it works</a></nav>
+      <div class="header-actions">
+        {% if current_user %}<a class="btn-solicitar" href="/dashboard">Open dashboard ↗</a>{% else %}<button type="button" class="login-link" data-auth="login">Log in</button><button type="button" class="btn-solicitar" data-auth="register">Create account</button>{% endif %}
+        <button type="button" id="mobile-menu-toggle" class="mobile-menu-btn" aria-label="Toggle navigation" aria-controls="mobile-nav-drawer" aria-expanded="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      </div>
+    </header>
+    <div id="mobile-nav-drawer" class="section-nav mobile-nav-drawer"><a href="#features" class="nav-link">Features</a><a href="#how-it-works" class="nav-link">How it works</a></div>
+    <main class="hero-main">
+      <div class="hero-content-inner">
+        <div class="hero-tag-wrapper"><span class="section-nav hero-tag"><span class="live-dot"></span> SMART AQUARIUM CARE</span></div>
+        <h1 class="section-title hero-h1">A better routine.<br>A thriving aquarium.</h1>
+        <p class="section-copy hero-paragraph">Make every feeding count. Set your schedule, keep an eye on feed levels, and care for your fish from one simple dashboard.</p>
+        <div class="section-nav cta-group">
+          {% if current_user %}<a href="/dashboard" class="btn-cta btn-primary">Go to dashboard ↗</a>{% else %}<button type="button" class="btn-cta btn-primary" data-auth="register">Get started ↗</button><button type="button" class="btn-cta btn-secondary" data-auth="login">Log in to your feeder</button>{% endif %}
+        </div>
+      </div>
+    </main>
+    <footer class="hero-footer"><div class="footer-divider"><div class="section-brand logos-grid"><span class="brand-logo-text">Scheduled feeding</span><span class="brand-logo-text">Live feed levels</span><span class="brand-logo-text">Hardware checks</span><span class="brand-logo-text">Feeding history</span></div></div></footer>
+  </section>
+  <section id="features" class="landing-section" aria-labelledby="features-title">
+    <div class="landing-section-heading"><span class="landing-eyebrow">A LITTLE CARE, EVERY DAY</span><h2 id="features-title">Your feeder. All in one place.</h2><p>Stay close to the details that keep your aquarium on a healthy routine.</p></div>
+    <div class="feature-grid"><article><span class="feature-icon" aria-hidden="true">◷</span><h3>Set the rhythm</h3><p>Choose morning, afternoon, and evening feeding times, with portions tuned through dispensing duration.</p></article><article><span class="feature-icon" aria-hidden="true">≈</span><h3>Know when to refill</h3><p>Follow the estimated hopper level and receive warnings when your feed supply runs low.</p></article><article><span class="feature-icon" aria-hidden="true">✓</span><h3>Stay informed</h3><p>Review feeding results, connection updates, and component tests in your workspace.</p></article></div>
+  </section>
+  <section id="how-it-works" class="landing-section steps-section" aria-labelledby="steps-title"><div class="landing-section-heading"><span class="landing-eyebrow">READY WHEN YOU ARE</span><h2 id="steps-title">From setup to a daily routine.</h2></div><ol class="feature-grid steps"><li><span>01</span><h3>Create your account</h3><p>Sign in to access the AquaFeed workspace.</p></li><li><span>02</span><h3>Connect your feeder</h3><p>Connect the Arduino to the computer running AquaFeed and check its hardware status.</p></li><li><span>03</span><h3>Save your schedule</h3><p>Enable automatic feeding and keep the AquaFeed server running for your scheduled meals.</p></li></ol></section>
+  <footer class="landing-bottom"><a href="#hero-section">AquaFeed Pro</a><span>Made for a healthy habitat.</span></footer>
+
+  <dialog id="auth-modal" class="auth-modal" aria-labelledby="auth-title" aria-describedby="auth-description">
+    <button type="button" class="modal-close" id="auth-close" aria-label="Close account form">×</button>
+    <div class="auth-brand">≈ <span>AquaFeed Pro</span></div>
+    <div class="auth-tabs" role="group" aria-label="Account forms"><button type="button" data-auth-tab="login" aria-pressed="true">Log in</button><button type="button" data-auth-tab="register" aria-pressed="false">Register</button></div>
+    <h2 id="auth-title">Welcome back</h2><p id="auth-description">Log in to manage your feeder.</p>
+    <p id="auth-error" class="auth-error" role="alert" hidden></p>
+    <form id="login-form">
+      <label for="login-email">Email address</label><input id="login-email" name="email" type="email" autocomplete="username" maxlength="254" placeholder="you@example.com" required autofocus>
+      <label for="login-password">Password</label><div class="password-field"><input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="128" required><button type="button" data-password="login-password" aria-label="Show password" aria-pressed="false">Show</button></div>
+      <button type="submit" class="auth-submit">Log in</button>
+      <p class="auth-switch">New to AquaFeed? <button type="button" data-auth-tab="register">Create an account</button></p>
+    </form>
+    <form id="register-form" hidden>
+      <label for="register-name">Full name</label><input id="register-name" name="name" autocomplete="name" minlength="2" maxlength="80" placeholder="Your name" required>
+      <label for="register-email">Email address</label><input id="register-email" name="email" type="email" autocomplete="username" maxlength="254" placeholder="you@example.com" required>
+      <label for="register-password">Password</label><div class="password-field"><input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" aria-describedby="password-help" required><button type="button" data-password="register-password" aria-label="Show password" aria-pressed="false">Show</button></div><small id="password-help">Use at least 8 characters.</small>
+      <label for="register-confirm">Confirm password</label><input id="register-confirm" name="confirm_password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+      <button type="submit" class="auth-submit">Create account</button>
+      <p class="auth-switch">Already have an account? <button type="button" data-auth-tab="login">Log in</button></p>
+    </form>
+  </dialog>
+  <noscript><p class="noscript-message">Enable JavaScript to use the login and registration forms.</p></noscript>
+</body>
+</html>

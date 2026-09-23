@@ -12,7 +12,10 @@ function notice(message, error = false) {
   $('notice').hidden = false;
 }
 async function api(path, options = {}) {
-  const response = await fetch(path, {cache:'no-store', signal:AbortSignal.timeout(12000), ...options});
+  const headers = new Headers(options.headers);
+  headers.set('X-CSRF-Token', document.querySelector('meta[name="csrf-token"]')?.content || '');
+  const response = await fetch(path, {cache:'no-store', signal:AbortSignal.timeout(12000), ...options, headers});
+  if (response.status === 401) { window.location.assign('/?auth=login'); throw new Error('Please log in again.'); }
   const data = await response.json();
   if (!response.ok) throw new Error(data.message || 'The request could not be completed.');
   return data;
@@ -37,3 +40,9 @@ async function refresh() {
   }
 }
 $('today').textContent = new Date().toLocaleDateString('en-US', {timeZone:'Asia/Manila', weekday:'short', month:'short', day:'numeric', year:'numeric'});
+
+$('logout-button')?.addEventListener('click', async event => {
+  event.currentTarget.disabled = true;
+  try { await api('/api/auth/logout', {method:'POST'}); window.location.assign('/'); }
+  catch (error) { notice(error.message, true); $('logout-button').disabled = false; }
+});

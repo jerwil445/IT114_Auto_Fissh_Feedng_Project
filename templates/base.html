@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() if csrf_token is defined else '' }}">
   <title>AquaFeed Pro · {{ {'dashboard':'Monitoring Dashboard','control':'Feeder Control','history':'Feeding History','hardware':'Hardware Tests'}[page] }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css', v='2') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/' + page + '.css', v='2') }}">
@@ -14,11 +15,12 @@
     <a class="brand" href="/"><span class="brand-icon">≈</span><span>AquaFeed <b>Pro</b><small>SMART AQUACULTURE</small></span></a>
     <div class="nav-label">WORKSPACE</div>
     <nav aria-label="Primary navigation">
-      <a href="/" class="{{ 'active' if page == 'dashboard' }}"><span>▦</span> Monitoring Dashboard</a>
+      <a href="/dashboard" class="{{ 'active' if page == 'dashboard' }}"><span>▦</span> Monitoring Dashboard</a>
       <a href="/control" class="{{ 'active' if page == 'control' }}"><span>⚙</span> Feeder Control</a>
       <a href="/history" class="{{ 'active' if page == 'history' }}"><span>◷</span> Feeding History</a>
       <a href="/hardware-test" class="{{ 'active' if page == 'hardware' }}"><span>&#9881;</span> Hardware Tests</a>
     </nav>
+    {% if current_user %}<div class="account-menu"><span>Signed in as <strong>{{ current_user.name }}</strong></span><button type="button" id="logout-button">Log out</button></div>{% endif %}
     <div class="sidebar-bottom"><div class="mini-wave">≈ ≈ ≈</div><strong>A little care. Every day.</strong><p>Consistent feeding for a thriving aquatic environment.</p><a href="/hardware-test">Open hardware diagnostics ↗</a></div>
   </aside>
   <div class="workspace">

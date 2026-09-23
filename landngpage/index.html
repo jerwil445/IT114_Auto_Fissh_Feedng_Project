@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Infraestructura de IA</title>
+    <meta
+      name="description"
+      content="Sección hero de infraestructura de IA con fondo de video a pantalla completa, tipografía Manrope y diseño responsivo."
+    />
+    <meta property="og:title" content="Infraestructura de IA" />
+    <meta
+      property="og:description"
+      content="Sección hero de infraestructura de IA con fondo de video a pantalla completa, tipografía Manrope y diseño responsivo."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Google Fonts: Manrope (400, 500, 600, 700) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Manrope:ital,wght@0,400;0,500;0,600;0,700&amp;display=swap"
+    />
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <section id="hero-section" class="hero-section">
+      <!-- Fullscreen Background Video (no transparent black overlay) -->
+      <div class="hero-video-container">
+        <video
+          id="hero-background-video"
+          class="hero-video"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="auto"
+          poster="public/media/flow-poster.jpg"
+          aria-hidden="true"
+        >
+          <source
+            src="public/media/Animate_blue_fish_aquarium_video_20260911013926.mp4"
+            type="video/mp4"
+          />
+          <source
+            src="public/media/flow-background.mp4"
+            type="video/mp4"
+          />
+          <source src="public/media/matriz-cognitiva-background.mp4" type="video/mp4" />
+        </video>
+      </div>
+
+      <!-- Header Navigation -->
+      <header id="main-navigation" class="hero-header">
+        <a href="#hero-section" id="brand-logo" class="section-brand brand-link" aria-label="Inicio">
+          <div class="brand-dot-container">
+            <div class="brand-dot"></div>
+          </div>
+          <span class="brand-name">MATRIZ</span>
+        </a>
+
+        <!-- Desktop Navigation Links -->
+        <nav id="desktop-nav" class="section-nav nav-links" aria-label="Navegación principal">
+          <a href="#plataforma" id="nav-plataforma" class="nav-link">Plataforma</a>
+          <a href="#modelos" id="nav-modelos" class="nav-link">Modelos</a>
+          <a href="#infraestructura" id="nav-infraestructura" class="nav-link">Infraestructura</a>
+          <a href="#empresa" id="nav-empresa" class="nav-link">Empresa</a>
+        </nav>
+
+        <!-- Header Actions -->
+        <div class="header-actions">
+          <button type="button" id="nav-solicitar-acceso" class="section-nav btn-solicitar">
+            Solicitar acceso
+          </button>
+
+          <!-- Mobile Menu Button -->
+          <button
+            type="button"
+            id="mobile-menu-toggle"
+            class="mobile-menu-btn"
+            aria-label="Alternar menú de navegación"
+            aria-expanded="false"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" y1="6" x2="20" y2="6"></line>
+              <line x1="4" y1="12" x2="20" y2="12"></line>
+              <line x1="4" y1="18" x2="20" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Mobile Navigation Drawer -->
+      <div id="mobile-nav-drawer" class="section-nav mobile-nav-drawer">
+        <a href="#plataforma" class="nav-link">Plataforma</a>
+        <a href="#modelos" class="nav-link">Modelos</a>
+        <a href="#infraestructura" class="nav-link">Infraestructura</a>
+        <a href="#empresa" class="nav-link">Empresa</a>
+      </div>
+
+      <!-- Main Left Block Content -->
+      <main id="hero-content" class="hero-main">
+        <div class="hero-content-inner">
+          <!-- Tag: Infraestructura de IA · Serie C -->
+          <div class="hero-tag-wrapper">
+            <span id="hero-tag" class="section-nav hero-tag">
+              Infraestructura de IA · Serie C
+            </span>
+          </div>
+
+          <!-- H1 Title: Manrope 500, 74 px en escritorio amplio, line-height 1.02, letter-spacing -0.03em, margen 75 px -->
+          <h1 id="hero-title" class="section-title hero-h1">
+            La siguiente capa <br />
+            de inteligencia.
+          </h1>
+
+          <!-- Paragraph: 18 px con interlineado 1.5, max 520 px (móvil 15 px) -->
+          <p id="hero-paragraph" class="section-copy hero-paragraph">
+            Cómputo, memoria y razonamiento en una sola plataforma. Construida para modelos que
+            todavía no existen.
+          </p>
+
+          <!-- Buttons: 50 px de altura, borde redondeado -->
+          <div id="hero-cta-group" class="section-nav cta-group">
+            <button type="button" id="cta-empezar-a-construir" class="btn-cta btn-primary">
+              Empezar a construir
+            </button>
+            <button type="button" id="cta-leer-el-paper" class="btn-cta btn-secondary">
+              Leer el paper
+            </button>
+          </div>
+        </div>
+      </main>
+
+      <!-- Base: Typographic Logos -->
+      <footer id="hero-logos-footer" class="hero-footer">
+        <div class="footer-divider">
+          <div id="typographic-logos-grid" class="section-brand logos-grid">
+            <span id="logo-neuralis" class="brand-logo-text">NEURALIS</span>
+            <span id="logo-tensoris" class="brand-logo-text">TENSORIS</span>
+            <span id="logo-hyperion" class="brand-logo-text">HYPERION</span>
+            <span id="logo-synapse" class="brand-logo-text">SYNAPSE</span>
+            <span id="logo-kinetic" class="brand-logo-text">KINETIC</span>
+            <span id="logo-aether" class="brand-logo-text">AETHER</span>
+          </div>
+        </div>
+      </footer>
+    </section>
+
+    <!-- Client-side Vanilla JavaScript Logic -->
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -50,4 +50,5 @@ class Database:
                 db.execute('CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, value TEXT NOT NULL)')
                 db.execute('CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, kind TEXT NOT NULL, trigger TEXT, portion TEXT, status TEXT NOT NULL, message TEXT NOT NULL)')
                 db.execute('CREATE TABLE IF NOT EXISTS executions (key TEXT PRIMARY KEY)')
+                db.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, created_at TEXT NOT NULL)')
             db.execute('INSERT INTO settings(id, value) VALUES(1, ?) ON CONFLICT (id) DO NOTHING', (json.dumps(defaults),))

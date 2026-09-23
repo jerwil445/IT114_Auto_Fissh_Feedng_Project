@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, render_template, request
 def create_blueprint(feeder):
     blueprint = Blueprint("dashboard", __name__)
 
-    @blueprint.get("/")
+    @blueprint.get("/dashboard")
     def home():
         return render_template("dashboard.html", page="dashboard")
 

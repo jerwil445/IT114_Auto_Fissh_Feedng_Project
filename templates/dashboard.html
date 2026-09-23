@@ -7,16 +7,10 @@
     <div class="dashboard-feed-actions">
       <a class="button light" href="/control"
         >Go to Feeder Control <span>↗</span></a
-      ><button
-        type="button"
-        class="button light"
-        id="dashboard-feed-now"
-        disabled
       >
-        Feed Now
-      </button>
     </div>
   </div>
+  
   <div class="hero-art" aria-hidden="true">
     <div class="water-line"></div>
     <div class="fish fish-one">&gt;&lt;(((°&gt;</div>
@@ -26,8 +20,17 @@
     <div class="plant">〰</div>
   </div>
 </section>
-<div class="metrics">
-  <section class="card hopper-card">
+<div class="dashboard-overview">
+  <div class="card feeder-overview" role="group" aria-label="Feeder monitoring">
+    <div class="feeder-panel-heading"><div><h2>Feed Hopper Level &amp; Status</h2><p class="muted">Live feed supply and hardware monitoring</p></div><button
+        type="button"
+        class="button light"
+        id="dashboard-feed-now"
+        disabled
+      >
+        Feed Now
+      </button></div>
+<section class="card hopper-card">
     <div class="card-label">Feed hopper level</div>
     <div
       class="hopper-tank"
@@ -51,37 +54,30 @@
       </div>
     </div>
   </section>
-  <section class="card">
+    <div class="feeder-status-stack">
+<section class="card">
     <div class="card-label">Next feeding <span>◷</span></div>
     <div class="metric" id="countdown">—</div>
     <div id="next-feeding" class="muted">Loading schedule…</div>
     <div class="card-foot" id="next-portion">Automatic feeding</div>
   </section>
-  <!-- <section class="card hopper-card">
-          <div class="card-label">Feed hopper level</div>
-          <div class="hopper-tank" role="meter" aria-label="Feed hopper capacity" aria-valuemin="0" aria-valuemax="100" id="level-meter">
-            <div class="hopper-interior"><div id="level-bar" class="hopper-fill"></div></div>
-            <div class="hopper-reading"><div class="hopper-percent"><span id="level">--</span><span class="hopper-unit">%</span></div></div>
-            <div class="hopper-scale" aria-hidden="true"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
-          </div>
-        </section> -->
-  <section class="card">
+<section class="card">
     <div class="card-label">Ultrasonic distance <span>↕</span></div>
     <div class="metric"><span id="distance">—</span><small>cm</small></div>
     <div class="muted">Distance to feed surface</div>
     <div class="card-foot" id="sensor-status">No reading yet</div>
   </section>
-  <section class="card">
+<section class="card">
     <div class="card-label">Hopper valve <span>◇</span></div>
     <div class="metric valve" id="valve">Unknown</div>
     <div class="muted">Last acknowledged command</div>
     <div class="card-foot">Physical position is not measured</div>
   </section>
-</div>
-<div class="two-column">
-  <section class="card">
+    </div>
+  </div>
+<section class="card dashboard-schedule">
     <div class="section-title">
-      <h2>Daily schedule</h2>
+      <h2>Daily Schedule</h2><span id="schedule-enabled-count" class="schedule-count"></span>
       <a href="/control">Edit schedule ↗</a>
     </div>
     <p class="muted">
@@ -89,7 +85,8 @@
     </p>
     <div id="schedule-snapshot"></div>
   </section>
-  <section class="card">
+</div>
+<section class="card dashboard-alerts">
     <div class="section-title">
       <h2>Recent system alerts</h2>
       <a href="/history">View all ↗</a>
@@ -99,5 +96,4 @@
       Firmware version and Wi-Fi status are not reported by this USB controller.
     </p>
   </section>
-</div>
 {% endblock %}

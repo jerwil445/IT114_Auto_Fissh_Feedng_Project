@@ -47,3 +47,14 @@ Validation: `python -m unittest -v test_aquafeed` and `node --check` for each fi
 
 
 LCD schedule screens: copy arduino_code.c++ into Arduino IDE and upload. Python sends the next enabled feeding and time, dispensing state, and successful completion state. Arduino displays completion for 5 seconds without blocking sensor monitoring, then returns to the next schedule. After all enabled slots succeed, it displays ALL FEEDS DONE and tomorrow's first time. Completion markers are date-scoped, so they reset at local midnight without deleting history. Keep Python running for schedule updates. Empty-hopper and sensor alerts override schedule screens. LCD communication failures do not retry feeding.
+
+
+## Landing page and accounts
+
+Open `/` for the aquarium landing page, adapted from `landngpage`. Use **Create account** or **Log in** to open the forms. Registration signs you in and opens `/dashboard`. Dashboard pages and hardware APIs require a signed-in account; use **Log out** in the sidebar to end the session.
+
+Accounts are stored in the PostgreSQL `users` table, created automatically at startup without replacing existing settings or history. Passwords are stored as Werkzeug scrypt hashes. Accounts share the same feeder, schedules and logs. The landing page assets are served directly by Flask; no Vite server is needed.
+
+The session signing key is persisted in `instance/session-secret` (ignored by Git), or supplied through `SECRET_KEY`. Keep it stable across restarts. Sessions last up to 12 hours. Set `COOKIE_SECURE=1` when serving over HTTPS. State-changing requests require the session CSRF token, which the included clients send automatically. Authentication attempts are limited to 20 per client IP per 10 minutes.
+
+Files: `pages/landing.py`, `templates/landing.html`, `static/css/landing.css`, `static/js/landing.js`, and `static/media/aquafeed-*`.

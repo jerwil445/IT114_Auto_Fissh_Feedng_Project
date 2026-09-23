@@ -9,15 +9,11 @@
       <div class="hardware-grid">
         {% for key, name, description in [
           ('connection', 'Arduino Connection', 'Send a ping to check whether the controller responds.'),
-          ('morning', 'Morning LED', 'Illuminate the morning indicator for 1 second.'),
-          ('afternoon', 'Afternoon LED', 'Illuminate the afternoon indicator for 1 second.'),
-          ('night', 'Evening LED', 'Illuminate the evening indicator for 1 second.'),
           ('red', 'Low Feed LED', 'Illuminate the low feed warning LED for 1 second.'),
           ('buzzer', 'Buzzer', 'Sound the alert buzzer for half a second.'),
           ('servo', 'Feeder Servo', 'Rotate for 3 seconds, then send the stop command.'),
           ('sensor', 'Ultrasonic Sensor', 'Read the distance to the feed surface in centimeters.'),
           ('lcd', 'LCD Display', 'Show the firmware test message on the LCD.'),
-          ('leds', 'All LEDs', 'Illuminate every LED together for 1 second.')
         ] %}
         <section class="card hardware-card"><div class="section-title"><h2>{{ name }}</h2><span class="badge neutral" id="test-status-{{ key }}">Not tested</span></div><div class="hardware-connectivity" role="status"><span class="badge neutral" data-hardware-connection="{{ key }}">Checking connection...</span><p class="footnote" data-connection-detail="{{ key }}">Waiting for device update.</p></div><p class="muted">{{ description }}</p><p class="test-result" id="test-result-{{ key }}" aria-live="polite">No test result yet.</p><button class="button secondary" data-test="{{ key }}" disabled>Test {{ name }}</button></section>
         {% endfor %}

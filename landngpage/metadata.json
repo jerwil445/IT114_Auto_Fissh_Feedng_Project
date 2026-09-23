@@ -1,0 +1,7 @@
+{
+  "name": "Infraestructura de IA",
+  "description": "Sección hero de infraestructura de IA con fondo de video a pantalla completa, tipografía Manrope y diseño responsivo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

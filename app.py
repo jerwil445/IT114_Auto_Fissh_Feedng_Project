@@ -12,12 +12,12 @@ app = Flask(__name__)
 # SERIAL CONFIGURATION
 # ==========================================
 
-ARDUINO_PORT = os.getenv("ARDUINO_PORT", "COM3")
+ARDUINO_PORT = os.getenv("ARDUINO_PORT", "COM4")
 ARDUINO_PORTS = [
     p.strip()
     for p in os.getenv(
         "ARDUINO_PORTS",
-        f"{ARDUINO_PORT},COM4,COM5,/dev/ttyUSB0,/dev/ttyACM0,/dev/ttyUSB1"
+        ARDUINO_PORT
     ).split(",")
     if p.strip()
 ]
@@ -276,6 +276,9 @@ def distance():
 from aquafeed import setup_aquafeed
 
 feeder = setup_aquafeed(app, send_command, get_connection)
+
+from pages.landing import setup_auth
+setup_auth(app, feeder.store)
 
 
 if __name__ == "__main__":

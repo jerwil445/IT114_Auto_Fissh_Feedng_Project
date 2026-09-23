@@ -13,7 +13,7 @@ h1,h2,h3,.brand,.metric{font-family:Manrope,Arial,sans-serif}
 .b2{top:55px;right:20px;width:7px;height:7px}
 .b3{bottom:20px;left:20px;width:15px;height:15px}
 .plant{position:absolute;font-size:90px;bottom:-40px;right:5px;transform:rotate(90deg);color:#61ac93}
-.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin-bottom:25px}
+
 .card-label{font-size:12px;color:#75857f;display:flex;justify-content:space-between;align-items:center}
 .card-label span{font-size:20px;color:#669284}
 .metric{font-size:35px;font-weight:700;letter-spacing:-1px;margin:16px 0 7px}
@@ -45,7 +45,7 @@ h1,h2,h3,.brand,.metric{font-family:Manrope,Arial,sans-serif}
 .hero{min-height:260px}
 }
 @media(max-width:1150px){
-.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+
 }
 @media(max-width:850px){
 .hero{padding:28px}
@@ -54,17 +54,17 @@ h1,h2,h3,.brand,.metric{font-family:Manrope,Arial,sans-serif}
 @media(max-width:520px){
 .hero-art{display:none}
 .hero h2{font-size:28px}
-.metrics{gap:12px}
+
 .metric{font-size:30px}
 .card-label{font-size:11px}
 .metric.valve{font-size:20px}
 }
 
 /* Vertical hopper gauge inspired by the supplied reference. */
-.metrics{align-items:stretch;grid-auto-rows:1fr}
-.metrics>.card{display:flex;flex-direction:column;min-width:0}
-.metrics>.card>.card-foot{margin-top:auto;padding-top:16px}
-.metrics>.card>.muted{margin-bottom:18px}
+
+
+
+
 .hopper-card{min-width:0}
 .hopper-tank{position:relative;width:min(100%,164px);height:224px;margin:18px auto 14px;background:#ffffff;border:2px solid #dbe7e2;border-radius:26px;box-shadow:inset 0 0 18px #087f7308;isolation:isolate;overflow:hidden}
 .hopper-interior{position:absolute;inset:9px 9px 9px 9px;border-radius:18px;overflow:hidden}
@@ -84,3 +84,46 @@ h1,h2,h3,.brand,.metric{font-family:Manrope,Arial,sans-serif}
 @media(max-width:520px){.hopper-tank{height:205px;border-radius:22px}.hopper-percent{font-size:29px}.hopper-unit{font-size:22px}.hopper-scale{font-size:7px}}
 @media(prefers-reduced-motion:reduce){.hopper-fill{transition:none}}
 .dashboard-feed-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* Monitoring panel and schedule layout. */
+.hero{align-items:center;gap:24px}
+.hero>div:first-child{position:relative;z-index:2;flex:1;min-width:0}
+.hero .hero-art{position:absolute;right:20px;top:20px;bottom:20px;width:30%;pointer-events:none;z-index:0}
+.dashboard-overview{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,1fr);gap:24px;align-items:stretch;margin-bottom:24px}
+.feeder-overview{display:grid;grid-template-columns:minmax(150px,.85fr) minmax(0,1.25fr);gap:20px 24px;padding:22px;min-width:0;border-radius:16px}
+.feeder-panel-heading{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:17px;border-bottom:1px solid var(--line)}
+.feeder-panel-heading h2{font-size:16px;margin:0 0 5px}
+.feeder-panel-heading p{font-size:12px;margin:0}
+#dashboard-feed-now{margin-left:auto;flex-shrink:0;padding:10px 16px;background:var(--teal);color:#fff;border:1px solid var(--teal);font-size:12px}
+.feeder-overview>.hopper-card{border:0;box-shadow:none;border-radius:0;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.feeder-overview .hopper-card>.card-label{font-size:12px;order:2;margin-top:12px;color:var(--muted)}
+.feeder-overview .hopper-tank{width:min(100%,174px);height:246px;flex:none;min-height:0;margin:0 auto}
+.feeder-overview .hopper-percent{font-size:39px}
+.feeder-overview .hopper-unit{font-size:28px}
+.feeder-overview .hopper-scale{font-size:9px;right:5px}
+.feeder-status-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:center;min-width:0}
+.feeder-status-stack>.card{padding:14px;box-shadow:none;background:#f8fbfa;min-width:0;border-radius:11px}
+.feeder-status-stack>.card:first-child{grid-column:1/-1}
+.feeder-status-stack .metric{font-size:27px;margin:10px 0 6px;overflow-wrap:anywhere}
+.feeder-status-stack .metric.valve{font-size:17px;min-height:0;padding:0}
+.feeder-status-stack .card-foot{margin-top:10px;padding-top:9px;font-size:10px;line-height:1.5}
+.feeder-status-stack .card-label{font-size:11px;gap:6px}
+.feeder-status-stack .card-label span{font-size:15px}
+.feeder-status-stack .muted{font-size:11px;line-height:1.5}
+.dashboard-schedule{min-width:0;border-radius:16px;padding:22px}
+.dashboard-schedule>.section-title{padding-bottom:17px;border-bottom:1px solid var(--line);gap:10px;flex-wrap:wrap}
+.dashboard-schedule h2{font-size:16px;margin:0}
+.schedule-count{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.dashboard-schedule>.muted{font-size:11px;margin:12px 0}
+.dashboard-schedule #schedule-snapshot{display:grid;gap:11px}
+.dashboard-schedule .schedule-row{border:1px solid var(--line);border-radius:11px;background:#f8fbfa;padding:14px 12px;margin:0;gap:10px}
+.dashboard-schedule .schedule-row.completed{background:#eefaf5;border-color:#cbe8db}
+.dashboard-schedule .slot-icon{width:30px;height:30px;font-size:17px}
+.dashboard-schedule .row-info strong{font-size:12px}
+.dashboard-schedule .row-info p{font-size:10px;line-height:1.5}
+.dashboard-schedule .schedule-time{font-size:12px;color:var(--teal);white-space:nowrap}
+.dashboard-schedule .schedule-time small{font-size:10px}
+.dashboard-alerts{margin-top:0}
+@media(max-width:1200px){.dashboard-overview{grid-template-columns:minmax(0,1.4fr) minmax(265px,1fr);gap:16px}.feeder-overview{grid-template-columns:minmax(120px,.75fr) minmax(0,1.25fr);gap:18px 14px;padding:18px}.feeder-status-stack{grid-template-columns:1fr;gap:10px}.feeder-status-stack>.card{padding:12px}.feeder-overview .hopper-tank{height:280px}.dashboard-schedule{padding:18px}}
+@media(max-width:1000px){.dashboard-overview{grid-template-columns:1fr}.feeder-overview{grid-template-columns:minmax(150px,.85fr) minmax(0,1.25fr)}.feeder-status-stack{grid-template-columns:repeat(2,minmax(0,1fr))}.feeder-overview .hopper-tank{height:246px}}
+@media(max-width:520px){.feeder-panel-heading{align-items:flex-start;flex-wrap:wrap}.feeder-panel-heading h2{font-size:15px}.feeder-overview{grid-template-columns:1fr;padding:18px}.feeder-overview .hopper-tank{width:174px;height:246px}.feeder-status-stack{gap:10px}.dashboard-overview{gap:18px}}
