@@ -277,9 +277,6 @@ from aquafeed import setup_aquafeed
 
 feeder = setup_aquafeed(app, send_command, get_connection)
 
-from pages.landing import setup_auth
-setup_auth(app, feeder.store)
-
 
 if __name__ == "__main__":
 
