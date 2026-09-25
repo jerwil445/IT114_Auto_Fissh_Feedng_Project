@@ -99,13 +99,32 @@ function validateTimeForName(timeValue, name) {
   return null;
 }
 
+function getSlotStatus(slot) {
+  const automation = $('automation') ? $('automation').checked : true;
+  if (slot.completed_today) {
+    return { text: '✓ Completed', type: 'complete' };
+  }
+  if (!slot.enabled || !automation) {
+    return { text: 'Paused', type: 'paused' };
+  }
+  return { text: 'Automatic', type: 'automatic' };
+}
+
+function updateSlotStatus(index) {
+  const pill = $(`slot-status-${index}`);
+  if (!pill || !slots[index]) return;
+  const status = getSlotStatus(slots[index]);
+  pill.textContent = status.text;
+  pill.className = `slot-status-pill status-${status.type}`;
+}
+
 function renderSlots() {
   $('schedule-editor').innerHTML = slots.length ? slots.map((slot, index) => {
     const timeRange = getTimeRange(slot.name);
-    return `<div class="editor-row" data-index="${index}"><label class="switch"><input type="checkbox" data-field="enabled" ${slot.enabled ? 'checked' : ''} aria-label="Enable ${escapeHtml(slot.name)}"><span></span></label><div><label for="name-${index}">Feeding name</label><input id="name-${index}" data-field="name" value="${escapeHtml(slot.name)}" maxlength="80"></div><div><label for="time-${index}">Time <small>${timeRange.label}</small></label><input id="time-${index}" type="time" data-field="time" value="${escapeHtml(slot.time)}"></div><div><label for="portion-${index}">Portion / feed type</label><input id="portion-${index}" data-field="portion" value="${escapeHtml(slot.portion)}" maxlength="80"></div><button type="button" class="delete" data-delete="${index}" aria-label="Delete ${escapeHtml(slot.name)}">Delete</button></div>`;
+    const status = getSlotStatus(slot);
+    return `<div class="editor-row" data-index="${index}"><label class="switch"><input type="checkbox" data-field="enabled" ${slot.enabled ? 'checked' : ''} aria-label="Enable ${escapeHtml(slot.name)}"><span></span></label><div><div class="field-header"><label for="name-${index}">Feeding name</label><span class="slot-status-pill status-${status.type}" id="slot-status-${index}">${status.text}</span></div><input id="name-${index}" data-field="name" value="${escapeHtml(slot.name)}" maxlength="80"></div><div><label for="time-${index}">Time <small>${timeRange.label}</small></label><input id="time-${index}" type="time" data-field="time" value="${escapeHtml(slot.time)}"></div><div><label for="portion-${index}">Portion / feed type</label><input id="portion-${index}" data-field="portion" value="${escapeHtml(slot.portion)}" maxlength="80"></div><button type="button" class="delete" data-delete="${index}" aria-label="Delete ${escapeHtml(slot.name)}">Delete</button></div>`;
   }).join('') : '<div class="empty">No feeding times. Add a time to build your routine.</div>';
   $('add-slot').disabled = slots.length >= 12;
-  
 }
 
 function fillSettings(data) {
@@ -118,6 +137,10 @@ function fillSettings(data) {
   $('empty-distance').value = settings.empty_distance;
   $('angle-note').textContent = data.angle_supported ? 'The saved angle is sent to your controller before dispensing.' : 'Angle is saved as a preference. Your current firmware interface uses its own servo angle; an angle command must be configured to apply this setting.';
   slots = structuredClone(settings.slots);
+  slots.forEach(slot => {
+    slot._originalTime = slot.time;
+    slot._originalCompleted = Boolean(slot.completed_today);
+  });
   renderSlots();
   loadedSettings = true;
 }
@@ -137,6 +160,10 @@ $('settings-form').addEventListener('submit', async event => {
     $('save').disabled = true;
     try {
       await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+      slots.forEach(slot => {
+        slot._originalTime = slot.time;
+        slot._originalCompleted = Boolean(slot.completed_today);
+      });
       notice('Schedule saved. Your feeding settings are up to date.');
     } catch (error) { notice(error.message, true); }
     finally { $('save').disabled = false; }
@@ -144,6 +171,9 @@ $('settings-form').addEventListener('submit', async event => {
   ['full-distance', 'empty-distance'].forEach(id => $(id).addEventListener('input', validateDistances));
   $('duration').addEventListener('input', () => validateNumber('duration', 'Dispensing duration'));
   $('angle').addEventListener('input' , () => $('angle-value').textContent = `${$('angle').value}°`);
+  $('automation').addEventListener('change', () => {
+    slots.forEach((_, index) => updateSlotStatus(index));
+  });
   $('schedule-editor').addEventListener('input', event => {
     const field = event.target.dataset.field;
     if (!field) return;
@@ -151,7 +181,26 @@ $('settings-form').addEventListener('submit', async event => {
     slots[index][field] = field === 'enabled' ? event.target.checked : event.target.value;
     const row = event.target.closest('.editor-row');
     if (field === 'name') row.querySelector(`label[for="time-${index}"] small`).textContent = getTimeRange(event.target.value).label;
+    if (field === 'time') {
+      if (slots[index]._originalTime && slots[index].time !== slots[index]._originalTime) {
+        slots[index].completed_today = false;
+      } else if (slots[index]._originalTime && slots[index].time === slots[index]._originalTime) {
+        slots[index].completed_today = Boolean(slots[index]._originalCompleted);
+      }
+      updateSlotStatus(index);
+    }
+    if (field === 'enabled') {
+      updateSlotStatus(index);
+    }
     validateSlots();
+  });
+  $('schedule-editor').addEventListener('change', event => {
+    const field = event.target.dataset.field;
+    if (field === 'enabled') {
+      const index = Number(event.target.closest('.editor-row').dataset.index);
+      slots[index].enabled = event.target.checked;
+      updateSlotStatus(index);
+    }
   });
   $('schedule-editor').addEventListener('click', event => {
     if (event.target.dataset.delete === undefined) return;
@@ -160,7 +209,7 @@ $('settings-form').addEventListener('submit', async event => {
   });
   $('add-slot').addEventListener('click', () => {
     if (!loadedSettings || slots.length >= 12) return;
-    slots.push({id:generateUUID(), name:'Extra feeding', time:'12:00', portion:'Fish feed', enabled:true});
+    slots.push({id:generateUUID(), name:'Extra feeding', time:'12:00', portion:'Fish feed', enabled:true, completed_today:false, _originalTime:'12:00', _originalCompleted:false});
     renderSlots();
     $('schedule-editor').querySelector('.editor-row:last-child input[data-field="name"]').focus();
   });

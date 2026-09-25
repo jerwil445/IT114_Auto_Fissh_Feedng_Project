@@ -118,6 +118,11 @@ class Feeder:
         slots = data.get("slots")
         if not isinstance(slots, list) or len(slots) > 12:
             raise ValueError("Use up to 12 feeding times.")
+        current = self.settings()
+        current_slots_by_id = {s.get("id"): s for s in current.get("slots", []) if isinstance(s, dict)}
+        current_slots_by_name = {s.get("name"): s for s in current.get("slots", []) if isinstance(s, dict)}
+        rescheduled_slot_ids = set()
+        rescheduled_new_times = set()
         ids, times = set(), set()
         cleaned["slots"] = []
         for slot in slots:
@@ -139,8 +144,22 @@ class Feeder:
             ids.add(slot["id"])
             times.add(slot["time"])
             cleaned["slots"].append({key: slot[key] for key in ("id", "name", "time", "portion", "enabled")})
+            old_slot = current_slots_by_id.get(slot["id"])
+            if old_slot is None:
+                old_slot = current_slots_by_name.get(slot["name"])
+            if old_slot and old_slot.get("time") != slot["time"]:
+                rescheduled_slot_ids.add(slot["id"])
+                if old_slot.get("id"):
+                    rescheduled_slot_ids.add(old_slot["id"])
+                rescheduled_new_times.add(slot["time"])
+
+        today = self.now().strftime("%Y-%m-%d")
         with self.db() as db:
             db.execute("UPDATE settings SET value=? WHERE id=1", (json.dumps(cleaned),))
+            for slot_id in rescheduled_slot_ids:
+                db.execute("DELETE FROM executions WHERE key = ? OR key LIKE ?", (f"completed:{today}:{slot_id}", f"completed:%:{slot_id}"))
+            for new_time in rescheduled_new_times:
+                db.execute("DELETE FROM executions WHERE key = ?", (f"{today}:{new_time}",))
         self.log("system", "Info", "Schedule and hardware settings saved.")
         return cleaned
 
@@ -152,6 +171,12 @@ class Feeder:
             completed = {row['key'][len(prefix):] for row in db.execute('SELECT key FROM executions WHERE key LIKE ?', (prefix + '%',)).fetchall()}
         for slot in settings['slots']:
             slot['completed_today'] = slot['id'] in completed
+            if slot['completed_today']:
+                slot['status'] = 'Completed'
+            elif not settings['automation'] or not slot['enabled']:
+                slot['status'] = 'Paused'
+            else:
+                slot['status'] = 'Automatic'
         upcoming = []
         if settings["automation"]:
             for slot in settings["slots"]:

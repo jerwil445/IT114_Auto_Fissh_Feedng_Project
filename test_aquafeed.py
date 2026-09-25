@@ -306,6 +306,60 @@ class FeederTests(unittest.TestCase):
         self.feeder.dispense('Automatic', 'Morning Flakes', settings)
         self.assertEqual(self.send.call_args.args[0], 'LCD_FAIL:MORNING')
 
+    def test_reschedule_slot_resets_completed_status(self):
+        settings = copy.deepcopy(DEFAULTS)
+        settings['automation'] = True
+        self.feeder.save(settings)
+        moment = datetime(2026, 9, 10, 18, 30, tzinfo=self.feeder.zone)
+        today = "2026-09-10"
+        with patch.object(self.feeder, 'now', return_value=moment):
+            # Mark all slots as completed for today
+            with self.feeder.db() as db:
+                for slot in settings['slots']:
+                    db.execute('INSERT INTO executions(key) VALUES(?)', (f'completed:{today}:{slot["id"]}',))
+
+            # Initial state: all feeds completed, LCD shows ALL FEEDS DONE
+            snapshot = self.feeder.snapshot()
+            evening_slot = next(s for s in snapshot['settings']['slots'] if s['id'] == 'evening')
+            self.assertTrue(evening_slot['completed_today'])
+            self.assertEqual(evening_slot['status'], 'Completed')
+            self.assertEqual(self.feeder.idle_lcd_command(), 'LCD_IDLE:ALL FEEDS DONE|NEXT: TOM 08:00AM')
+
+            # Reschedule evening from 18:00 to 19:00
+            new_settings = copy.deepcopy(snapshot['settings'])
+            for slot in new_settings['slots']:
+                if slot['id'] == 'evening':
+                    slot['time'] = '19:00'
+            self.feeder.save(new_settings)
+
+            # Evening completed_today resets to False, status resets to Automatic
+            snapshot_after = self.feeder.snapshot()
+            evening_after = next(s for s in snapshot_after['settings']['slots'] if s['id'] == 'evening')
+            self.assertFalse(evening_after['completed_today'])
+            self.assertEqual(evening_after['status'], 'Automatic')
+
+            # Morning remains completed
+            morning_after = next(s for s in snapshot_after['settings']['slots'] if s['id'] == 'morning')
+            self.assertTrue(morning_after['completed_today'])
+            self.assertEqual(morning_after['status'], 'Completed')
+
+            # Database execution record for evening was deleted
+            with self.feeder.db() as db:
+                remaining = [row['key'] for row in db.execute('SELECT key FROM executions WHERE key LIKE ?', (f'completed:{today}:%',)).fetchall()]
+            self.assertNotIn(f'completed:{today}:evening', remaining)
+
+            # LCD idle command now points to 07:00 PM today instead of ALL FEEDS DONE
+            self.assertEqual(self.feeder.idle_lcd_command(), 'LCD_IDLE:NEXT: EVENING|AT 07:00 PM')
+
+            # When automatic mode is disabled, status becomes 'Paused'
+            disabled_auto = copy.deepcopy(snapshot_after['settings'])
+            disabled_auto['automation'] = False
+            self.feeder.save(disabled_auto)
+            paused_snapshot = self.feeder.snapshot()
+            evening_paused = next(s for s in paused_snapshot['settings']['slots'] if s['id'] == 'evening')
+            self.assertFalse(evening_paused['completed_today'])
+            self.assertEqual(evening_paused['status'], 'Paused')
+
     def test_lcd_reply_filter(self):
         self.assertTrue(is_command_reply('LCD_DONE:MORNING', 'LCD_OK'))
         self.assertFalse(is_command_reply('LCD_DONE:MORNING', 'SERVO_STOPPED'))

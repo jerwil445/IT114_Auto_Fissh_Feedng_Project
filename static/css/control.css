@@ -14,6 +14,12 @@
 .editor-row:first-child{margin-top:20px}
 .editor-row .switch{margin-bottom:8px}
 .editor-row label,.config label{font-size:12px;font-weight:600;display:block;margin-bottom:8px}
+.field-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.field-header label{margin-bottom:0}
+.slot-status-pill{font-size:10px;font-weight:600;padding:2px 8px;border-radius:12px;line-height:1.4;white-space:nowrap}
+.slot-status-pill.status-complete{background:#e6f6ee;color:#1b8a5a}
+.slot-status-pill.status-automatic{background:#eef4fb;color:#2563eb}
+.slot-status-pill.status-paused{background:#f1f3f4;color:#6b7280}
 .editor-row label small{display:block;font-size:10px;font-weight:400;color:var(--muted);margin-top:3px}
 .delete{border:0;background:#fff0ec;color:#b45848;border-radius:7px;padding:12px 8px;font-size:11px;margin-bottom:0}
 input.error{border-color:#d9534f !important;background-color:#fff5f5 !important}

@@ -321,6 +321,15 @@ void processCommand(String command) {
     } else if (nextFeedTime.startsWith("TOM ")) {
       nextFeedTime = "Tom: " + nextFeedTime.substring(4);
     }
+    if (lastCompletedFeed.length() > 0 && !idleLine2.startsWith("TOM ") && !idleLine2.startsWith("NEXT: TOM ")) {
+      String upperLine1 = idleLine1;
+      upperLine1.toUpperCase();
+      String upperLast = lastCompletedFeed;
+      upperLast.toUpperCase();
+      if (upperLine1.indexOf(upperLast) >= 0) {
+        lastCompletedFeed = "";
+      }
+    }
     renderFeederLcd();
     Serial.println(F("LCD_OK"));
     return;
