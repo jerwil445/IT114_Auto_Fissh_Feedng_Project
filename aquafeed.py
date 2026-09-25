@@ -63,6 +63,8 @@ class Feeder:
         self.worker = None
         self.state = {"connected": False, "port": None, "operation": "Ready", "valve": "Unknown", "distance": None, "level": None, "updated_at": None}
         self.last_connection = None
+        self.calibration_sent = None
+        self.calibration_sent_at = 0
         self.low = False
         self.empty = False
         self.lcd_idle_command = None
@@ -82,10 +84,9 @@ class Feeder:
     def settings(self):
         with self.db() as db:
             settings = json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()['value'])
-        # Apply the fixed empty threshold to previously saved configurations too.
-        settings["empty_distance"] = EMPTY_DISTANCE_CM
+        settings.setdefault("empty_distance", EMPTY_DISTANCE_CM)
         settings["calibrated"] = True
-        if not 0 <= settings["full_distance"] < EMPTY_DISTANCE_CM:
+        if not 0 <= settings["full_distance"] < settings["empty_distance"]:
             settings["full_distance"] = DEFAULTS["full_distance"]
         return settings
 
@@ -113,8 +114,6 @@ class Feeder:
             cleaned[key] = value
         if cleaned["full_distance"] >= cleaned["empty_distance"]:
             raise ValueError("Empty distance must be greater than full distance.")
-        if cleaned["empty_distance"] != EMPTY_DISTANCE_CM:
-            raise ValueError("The empty hopper distance is fixed at 20 cm.")
         cleaned["calibrated"] = True
         slots = data.get("slots")
         if not isinstance(slots, list) or len(slots) > 12:
@@ -202,7 +201,7 @@ class Feeder:
         """Reassert empty warnings; only a valid refill reading clears them."""
         with self.alarm_lock:
             if distance is not None:
-                empty = distance >= EMPTY_DISTANCE_CM
+                empty = distance >= self.settings()["empty_distance"]
             else:
                 empty = self.alarm_active
             if empty:
@@ -226,7 +225,7 @@ class Feeder:
             if command in ("RED_OFF", "BUZZER_OFF", "ALL_LED_OFF", "LCD_TEST"):
                 distance = parse_distance(self.raw_send("DISTANCE"))
                 self.apply_alarm(distance)
-                if distance is None or distance >= EMPTY_DISTANCE_CM or self.alarm_active:
+                if distance is None or distance >= self.settings()["empty_distance"] or self.alarm_active:
                     if command == "ALL_LED_OFF":
                         for led in ("MORNING_OFF", "AFTERNOON_OFF", "NIGHT_OFF"):
                             self.raw_send(led)
@@ -380,14 +379,25 @@ class Feeder:
             self.log("system", "Info" if connected else "Warning", "Arduino connected." if connected else "Arduino disconnected. Check USB and power.")
             self.last_connection = connected
         distance = None
+        calibration = (settings['full_distance'], settings['empty_distance'])
+        if not connected:
+            self.calibration_sent = None
+            with self.state_lock:
+                self.state['calibration_synced'] = False
         if connected:
+            if calibration != self.calibration_sent or time.monotonic() - self.calibration_sent_at >= 30:
+                reply = self.send(f"CALIBRATE:{calibration[0]:g},{calibration[1]:g}")
+                self.calibration_sent = calibration
+                self.calibration_sent_at = time.monotonic()
+                with self.state_lock:
+                    self.state['calibration_synced'] = reply == 'CALIBRATION_OK'
             response = self.send("DISTANCE")
             distance = parse_distance(response)
-        level = feed_percentage(distance, settings["full_distance"])
-        empty = distance >= EMPTY_DISTANCE_CM if distance is not None else None
+        level = feed_percentage(distance, settings["full_distance"], settings["empty_distance"])
+        empty = distance >= self.settings()["empty_distance"] if distance is not None else None
         if level is not None:
             if empty and not self.empty:
-                self.log("system", "Warning", "FEED EMPTY — PLEASE REFILL. Hopper distance is 20 cm or more.")
+                self.log("system", "Warning", f"FEED EMPTY — PLEASE REFILL. Hopper distance is {settings['empty_distance']:g} cm or more.")
             elif not empty and self.empty:
                 self.log("system", "Info", f"Hopper refilled. Feed level is {level:g}%.")
             elif level < 20 and not self.low:

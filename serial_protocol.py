@@ -17,11 +17,11 @@ def parse_distance(response):
     return distance if math.isfinite(distance) and distance >= 0 else None
 
 
-def feed_percentage(distance, full_distance):
+def feed_percentage(distance, full_distance, empty_distance=EMPTY_DISTANCE_CM):
     if distance is None:
         return None
-    # Floating-point equivalent of map(distance, full_distance, 20, 100, 0).
-    percent = (EMPTY_DISTANCE_CM - distance) / (EMPTY_DISTANCE_CM - full_distance) * 100
+    # Floating-point equivalent of map(distance, full_distance, empty_distance, 100, 0).
+    percent = (empty_distance - distance) / (empty_distance - full_distance) * 100
     return round(max(0.0, min(100.0, percent)), 1)
 
 
@@ -34,6 +34,8 @@ def is_command_reply(command, response):
         return command == "FEED_LEVEL"
     if response.startswith("FEED_STATUS:") or response == "SENSOR_ERROR":
         return False
+    if command.startswith('CALIBRATE:'):
+        return response == 'CALIBRATION_OK' or response.startswith(('ERROR:', 'UNKNOWN_COMMAND:'))
     if command.startswith(('LCD_IDLE:', 'LCD_ACTIVE:', 'LCD_DONE:', 'LCD_FAIL:')):
         return response == 'LCD_OK' or response.startswith(('UNKNOWN_COMMAND:', 'ERROR:'))
     return True

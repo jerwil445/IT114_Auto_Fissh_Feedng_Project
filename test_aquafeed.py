@@ -131,16 +131,52 @@ class FeederTests(unittest.TestCase):
         self.assertIn('BUZZER_ON', commands)
         self.assertEqual(commands[-2:], ['RED_OFF', 'BUZZER_OFF'])
 
-    def test_old_settings_use_fixed_empty_threshold(self):
-        import json
+    def test_custom_calibration_persists_and_drives_percentage_and_alarm(self):
         settings = copy.deepcopy(DEFAULTS)
-        settings.update(empty_distance=25, calibrated=False)
-        with self.feeder.db() as db:
-            db.execute('UPDATE settings SET value=? WHERE id=1', (json.dumps(settings),))
-        self.assertEqual(self.feeder.settings()['empty_distance'], 20)
-        self.assertTrue(self.feeder.settings()['calibrated'])
-        with self.assertRaises(ValueError):
-            self.feeder.save(settings)
+        settings.update(full_distance=5, empty_distance=35, automation=False)
+        self.feeder.save(settings)
+        reopened = Feeder(self.send, self.connection, self.database)
+        self.assertEqual(reopened.settings()['empty_distance'], 35)
+        distance = [20]
+        def reply(command):
+            if command == 'DISTANCE': return f'DISTANCE:{distance[0]}CM'
+            if command.startswith('CALIBRATE:'): return 'CALIBRATION_OK'
+            if command.startswith('LCD_'): return 'LCD_OK'
+            return 'OK'
+        self.send.side_effect = reply
+        reopened.tick()
+        self.assertEqual(reopened.state['level'], 50)
+        self.assertFalse(reopened.state['hopper_empty'])
+        self.assertTrue(reopened.state['calibration_synced'])
+        self.assertIn('CALIBRATE:5,35', [call.args[0] for call in self.send.call_args_list])
+        distance[0] = 35
+        reopened.tick()
+        self.assertEqual(reopened.state['level'], 0)
+        self.assertTrue(reopened.alarm_active)
+        self.assertEqual(reopened.send('RED_OFF'), 'ALARM_PROTECTED')
+        distance[0] = 5
+        reopened.tick()
+        self.assertEqual(reopened.state['level'], 100)
+        self.assertFalse(reopened.alarm_active)
+        settings['empty_distance'] = 25
+        reopened.save(settings)
+        reopened.tick()
+        self.assertIn('CALIBRATE:5,25', [call.args[0] for call in self.send.call_args_list])
+
+    def test_calibration_validation_and_unsupported_firmware(self):
+        for full, empty in ((5,5),(10,5),(-1,20),(3,501),(3,float('nan'))):
+            settings = copy.deepcopy(DEFAULTS)
+            settings.update(full_distance=full, empty_distance=empty)
+            with self.assertRaises(ValueError): self.feeder.save(settings)
+        self.send.return_value = 'UNKNOWN_COMMAND:CALIBRATE'
+        self.feeder.tick()
+        self.assertFalse(self.feeder.state['calibration_synced'])
+        self.assertEqual(feed_percentage(50, 5, 35), 0)
+        self.assertEqual(feed_percentage(1, 5, 35), 100)
+        self.assertEqual(feed_percentage(20, 5, 35), 50)
+        self.assertIsNone(feed_percentage(None, 5, 35))
+        self.assertFalse(is_command_reply('CALIBRATE:5,35', 'FEED_STATUS:EMPTY'))
+        self.assertTrue(is_command_reply('CALIBRATE:5,35', 'CALIBRATION_OK'))
 
     def test_nonfinite_sensor_readings_are_unavailable(self):
         for response in ('DISTANCE:nan', 'DISTANCE:inf', 'DISTANCE:-1', 'ERROR', ''):

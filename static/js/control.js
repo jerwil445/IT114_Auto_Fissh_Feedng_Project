@@ -165,6 +165,7 @@ $('settings-form').addEventListener('submit', async event => {
     if (!loadedSettings) return notice('Wait for settings to load before saving.', true);
     if (!validateSlots()) return notice('Please fill in all required fields.', true);
     const data = {automation:$('automation').checked, angle:Number($('angle').value), duration:Number($('duration').value), full_distance:Number($('full-distance').value), empty_distance:Number($('empty-distance').value), calibrated:true, slots};
+    if (data.full_distance >= data.empty_distance) return notice('Empty distance must be greater than full distance.', true);
     $('save').disabled = true;
     try {
       await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
@@ -197,6 +198,11 @@ $('settings-form').addEventListener('submit', async event => {
   });
 
 function onMonitor(data, stale) {
+  $('calibration-status').textContent = stale || !data.connected
+    ? 'Controller disconnected. Saved calibration will be sent when it reconnects.'
+    : data.calibration_synced
+      ? 'Saved distance calibration confirmed by the Arduino.'
+      : 'Arduino calibration not confirmed. Upload the updated arduino_code.c++ sketch; hardware warnings may still use the previous distances.';
   if (!loadedSettings) fillSettings(data);
   $('feed-now').disabled = stale || !data.connected || data.operation === 'Dispensing' || data.diagnostics.running;
   $('feed-now').textContent = data.operation === 'Dispensing' ? 'Dispensing...' : 'Feed Now';
