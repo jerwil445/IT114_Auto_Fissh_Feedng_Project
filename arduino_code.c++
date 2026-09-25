@@ -2,7 +2,9 @@
 // Python sends LCD_IDLE:NEXT: MORNING|AT 08:00 AM for the scheduled time.
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
-#include <Servo.h>  
+#include <Servo.h>
+#include <stdlib.h>
+#include <math.h>  
 
 // ==================================================
 // COMPONENTS
@@ -44,10 +46,10 @@ const int BUZZER_FREQUENCY = 1000;
 // SETUP
 // ==================================================
 
-const float FULL_DISTANCE_CM = 3.0;
+float FULL_DISTANCE_CM = 3.0;
 
-// The feed hopper is empty at 20 cm or greater.
-const float EMPTY_DISTANCE_CM = 20.0;
+// Default until Python sends the saved full and empty distances.
+float EMPTY_DISTANCE_CM = 20.0;
 
 // Read the ultrasonic sensor every 500 milliseconds.
 const unsigned long SENSOR_INTERVAL = 500;
@@ -68,6 +70,18 @@ unsigned long lcdTestStarted = 0;
 String lastLine1 = "";
 String lastLine2 = "";
 
+// Idle LCD rotation: flash -> Morning -> flash -> Afternoon -> flash -> distance.
+// Default times can be edited here; LCD_IDLE updates the matching next-feed time.
+String morningSchedule = "08:00 AM";
+String afternoonSchedule = "12:00 PM";
+const unsigned long LCD_SCREEN_MS = 3000UL;
+const unsigned long LCD_FLASH_MS = 200UL;
+byte idleScreen = 0;
+byte idleFlashStep = 0;
+bool idleSequenceStarted = false;
+bool idleFlashing = true;
+unsigned long idlePhaseStarted = 0;
+
 void writeLcdLines(String first, String second) {
   first = first.substring(0, 16);
   second = second.substring(0, 16);
@@ -80,12 +94,61 @@ void writeLcdLines(String first, String second) {
   lcd.setCursor(0, 1); lcd.print(second);
 }
 
+void drawIdleScreen() {
+  if (idleScreen == 0) {
+    writeLcdLines("Morning", morningSchedule);
+  } else if (idleScreen == 1) {
+    writeLcdLines("Afternoon", afternoonSchedule);
+  } else {
+    writeLcdLines("Sensor Distance", currentDistanceCm < 0
+      ? String("No sensor echo") : String(currentDistanceCm, 1) + " cm");
+  }
+}
+
+void renderIdleSequence() {
+  unsigned long now = millis();
+  if (!idleSequenceStarted) {
+    idleSequenceStarted = true;
+    idleScreen = 0;
+    idleFlashStep = 0;
+    idleFlashing = true;
+    idlePhaseStarted = now;
+    lcd.noBacklight();
+  }
+  if (idleFlashing) {
+    if (now - idlePhaseStarted >= LCD_FLASH_MS) {
+      idlePhaseStarted = now;
+      idleFlashStep++;
+      if (idleFlashStep % 2 == 1) lcd.backlight();
+      else lcd.noBacklight();
+      if (idleFlashStep >= 3) {
+        idleFlashing = false;
+        drawIdleScreen();
+      }
+    }
+    return;
+  }
+  drawIdleScreen(); // Uses the existing live sensor reading; no extra pulseIn.
+  if (now - idlePhaseStarted >= LCD_SCREEN_MS) {
+    idleScreen = (idleScreen + 1) % 3;
+    idleFlashStep = 0;
+    idleFlashing = true;
+    idlePhaseStarted = now;
+    lcd.noBacklight();
+  }
+}
+
 void renderFeederLcd() {
   if (lcdTestActive && millis() - lcdTestStarted >= 1500UL) {
     lcdTestActive = false;
   }
   if ((feedingState == "COMPLETE" || feedingState == "FAILED") &&
       millis() - completionStarted >= 5000UL) feedingState = "";
+  // Interrupt flashing immediately for alarms, feeding, or hardware diagnostics.
+  if (hopperEmpty || currentDistanceCm < 0 || feedingState.length() > 0 || lcdTestActive) {
+    if (idleSequenceStarted) lcd.backlight();
+    idleSequenceStarted = false;
+  }
   if (hopperEmpty) {
     writeLcdLines("FEED EMPTY", "PLEASE REFILL");
   } else if (currentDistanceCm < 0) {
@@ -95,7 +158,7 @@ void renderFeederLcd() {
   } else if (lcdTestActive) {
     writeLcdLines("HARDWARE TEST", "LCD WORKING");
   } else {
-    writeLcdLines(idleLine1, idleLine2);
+    renderIdleSequence();
   }
 }
 
@@ -184,11 +247,34 @@ void loop() {
 // ==================================================
 
 void processCommand(String command) {
+  if (command.startsWith("CALIBRATE:")) {
+    String values = command.substring(10);
+    const char *start = values.c_str();
+    char *end;
+    float full = strtod(start, &end);
+    if (end == start || *end != ',') { Serial.println("ERROR:CALIBRATION"); return; }
+    start = end + 1;
+    float empty = strtod(start, &end);
+    if (end == start || *end != '\0' || !isfinite(full) || !isfinite(empty) ||
+        full < 0 || empty < 0.1 || empty <= full || empty > 500) {
+      Serial.println("ERROR:CALIBRATION"); return;
+    }
+    FULL_DISTANCE_CM = full;
+    EMPTY_DISTANCE_CM = empty;
+    updateFeedHopper();
+    Serial.println("CALIBRATION_OK");
+    return;
+  }
   if (command.startsWith("LCD_IDLE:")) {
     int separator = command.indexOf('|', 9);
     if (separator < 0) { Serial.println("ERROR:LCD_FORMAT"); return; }
     idleLine1 = command.substring(9, separator);
     idleLine2 = command.substring(separator + 1);
+    // Keep displayed times aligned when the dashboard announces the next slot.
+    if (idleLine2.startsWith("AT ")) {
+      if (idleLine1.indexOf("MORNING") >= 0) morningSchedule = idleLine2.substring(3);
+      if (idleLine1.indexOf("AFTERNOON") >= 0) afternoonSchedule = idleLine2.substring(3);
+    }
     renderFeederLcd();
     Serial.println("LCD_OK");
     return;
