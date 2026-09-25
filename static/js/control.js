@@ -23,74 +23,64 @@ function getTimeRange(name) {
 let loadedSettings = false;
 let slots = [];
 
-function validateSlots() {
-  let isValid = true;
-  $('schedule-editor').querySelectorAll('.editor-row').forEach((row, index) => {
-    const nameInput = row.querySelector('input[data-field="name"]');
-    const timeInput = row.querySelector('input[data-field="time"]');
-    const portionInput = row.querySelector('input[data-field="portion"]');
-    
-    // Clear previous errors
-    row.querySelectorAll('.error-text').forEach(el => el.remove());
-    row.querySelectorAll('input').forEach(el => el.classList.remove('error'));
-    
-    // Validate name
-    if (!nameInput.value.trim()) {
-      addErrorMessage(nameInput, 'Feeding name is required');
-      isValid = false;
-    }
-    
-    // Validate time
-    if (!timeInput.value) {
-      addErrorMessage(timeInput, 'Time is required');
-      isValid = false;
-    } else {
-      const timeError = validateTimeForName(timeInput.value, nameInput.value);
-      if (timeError) {
-        addTimeErrorMessage(timeInput, nameInput, timeError);
-        isValid = false;
-      }
-    }
-    
-    // Validate portion
-    if (!portionInput.value.trim()) {
-      addErrorMessage(portionInput, 'Portion type is required');
-      isValid = false;
-    }
-  });
-  return isValid;
-}
-
 function addErrorMessage(input, message) {
-  input.classList.add('error');
-  // Remove existing error message
-  const existingError = input.parentElement.querySelector('.error-text');
-  if (existingError) existingError.remove();
-  if (message) {
-    const errorEl = document.createElement('small');
-    errorEl.className = 'error-text';
-    errorEl.textContent = message;
-    input.parentElement.appendChild(errorEl);
+  const id = `${input.id}-error`;
+  let error = $(id);
+  if (!error) {
+    error = document.createElement('small');
+    error.id = id;
+    error.className = 'error-text';
+    error.setAttribute('aria-live', 'polite');
+    const anchor = input.closest('.input-unit') || input;
+    anchor.insertAdjacentElement('afterend', error);
+    const descriptions = new Set((input.getAttribute('aria-describedby') || '').split(' ').filter(Boolean));
+    descriptions.add(id);
+    input.setAttribute('aria-describedby', [...descriptions].join(' '));
   }
+  error.textContent = message || '';
+  error.hidden = !message;
+  input.classList.toggle('error', Boolean(message));
+  input.setAttribute('aria-invalid', String(Boolean(message)));
+  return !message;
 }
 
-function addTimeErrorMessage(timeInput, nameInput, message) {
-  timeInput.classList.add('error');
-  // Remove existing error message
-  const existingError = nameInput.parentElement.querySelector('.error-text');
-  if (existingError) existingError.remove();
-  if (message) {
-    const errorEl = document.createElement('small');
-    errorEl.className = 'error-text';
-    errorEl.textContent = message;
-    nameInput.parentElement.appendChild(errorEl);
-  }
+function validateSlot(row) {
+  const name = row.querySelector('[data-field="name"]');
+  const time = row.querySelector('[data-field="time"]');
+  const portion = row.querySelector('[data-field="portion"]');
+  let valid = addErrorMessage(name, name.value.trim() ? '' : 'Feeding name is required.');
+  const duplicate = slots.some((slot, index) => index !== Number(row.dataset.index) && slot.time === time.value);
+  const timeError = !time.value ? 'Feeding time is required.'
+    : validateTimeForName(time.value, name.value) || (duplicate ? 'Choose a different time; another feeding uses this time.' : '');
+  valid = addErrorMessage(time, timeError) && valid;
+  valid = addErrorMessage(portion, portion.value.trim() ? '' : 'Portion / feed type is required.') && valid;
+  return valid;
 }
 
-function clearTimeError(timeInput, nameInput) {
-  timeInput.classList.remove('error');
-  const errorEl = nameInput.parentElement.querySelector('.error-text');
-  if (errorEl) errorEl.remove();
+function validateSlots() {
+  let valid = true;
+  $('schedule-editor').querySelectorAll('.editor-row').forEach(row => { valid = validateSlot(row) && valid; });
+  return valid;
+}
+
+function validateNumber(id, label) {
+  const input = $(id);
+  let message = '';
+  if (input.validity.badInput) message = `Enter a valid number for ${label.toLowerCase()}.`;
+  else if (input.value.trim() === '') message = `${label} is required.`;
+  else if (!Number.isFinite(input.valueAsNumber)) message = 'Enter a valid number.';
+  else if (input.validity.rangeUnderflow || input.validity.rangeOverflow) message = `Use a value between ${input.min} and ${input.max}.`;
+  else if (input.validity.stepMismatch) message = `Use increments of ${input.step}.`;
+  return addErrorMessage(input, message);
+}
+
+function validateDistances() {
+  const fullValid = validateNumber('full-distance', 'Full hopper distance');
+  const emptyValid = validateNumber('empty-distance', 'Empty hopper distance');
+  if (fullValid && emptyValid && $('empty-distance').valueAsNumber <= $('full-distance').valueAsNumber) {
+    return addErrorMessage($('empty-distance'), 'Empty distance must be greater than full distance.');
+  }
+  return fullValid && emptyValid;
 }
 
 function validateTimeForName(timeValue, name) {
@@ -116,37 +106,8 @@ function renderSlots() {
   }).join('') : '<div class="empty">No feeding times. Add a time to build your routine.</div>';
   $('add-slot').disabled = slots.length >= 12;
   
-  // Add event listeners for real-time validation
-  $('schedule-editor').querySelectorAll('.editor-row').forEach((row, index) => {
-    const timeInput = row.querySelector('input[data-field="time"]');
-    const nameInput = row.querySelector('input[data-field="name"]');
-    
-    timeInput?.addEventListener('input', () => {
-      const error = validateTimeForName(timeInput.value, nameInput.value);
-      if (error) {
-        addTimeErrorMessage(timeInput, nameInput, error);
-      } else {
-        clearTimeError(timeInput, nameInput);
-      }
-    });
-    
-    nameInput?.addEventListener('input', () => {
-      if (timeInput.value) {
-        const error = validateTimeForName(timeInput.value, nameInput.value);
-        if (error) {
-          addTimeErrorMessage(timeInput, nameInput, error);
-        } else {
-          clearTimeError(timeInput, nameInput);
-        }
-      }
-      const label = row.querySelector('label[for="time-' + index + '"] small');
-      if (label) {
-        const timeRange = getTimeRange(nameInput.value);
-        label.textContent = timeRange.label;
-      }
-    });
-  });
 }
+
 function fillSettings(data) {
   const settings = data.settings;
   $('automation').checked = settings.automation;
@@ -163,9 +124,16 @@ function fillSettings(data) {
 $('settings-form').addEventListener('submit', async event => {
     event.preventDefault();
     if (!loadedSettings) return notice('Wait for settings to load before saving.', true);
-    if (!validateSlots()) return notice('Please fill in all required fields.', true);
+    $('notice').hidden = true;
+    const scheduleValid = validateSlots();
+    const distancesValid = validateDistances();
+    const durationValid = validateNumber('duration', 'Dispensing duration');
+    const angleValid = validateNumber('angle', 'Servo opening angle');
+    if (!scheduleValid || !distancesValid || !durationValid || !angleValid) {
+      $('settings-form').querySelector('[aria-invalid="true"]')?.focus();
+      return;
+    }
     const data = {automation:$('automation').checked, angle:Number($('angle').value), duration:Number($('duration').value), full_distance:Number($('full-distance').value), empty_distance:Number($('empty-distance').value), calibrated:true, slots};
-    if (data.full_distance >= data.empty_distance) return notice('Empty distance must be greater than full distance.', true);
     $('save').disabled = true;
     try {
       await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
@@ -173,12 +141,17 @@ $('settings-form').addEventListener('submit', async event => {
     } catch (error) { notice(error.message, true); }
     finally { $('save').disabled = false; }
   });
-  $('angle').addEventListener('input', () => $('angle-value').textContent = `${$('angle').value}°`);
+  ['full-distance', 'empty-distance'].forEach(id => $(id).addEventListener('input', validateDistances));
+  $('duration').addEventListener('input', () => validateNumber('duration', 'Dispensing duration'));
+  $('angle').addEventListener('input' , () => $('angle-value').textContent = `${$('angle').value}°`);
   $('schedule-editor').addEventListener('input', event => {
     const field = event.target.dataset.field;
     if (!field) return;
     const index = Number(event.target.closest('.editor-row').dataset.index);
     slots[index][field] = field === 'enabled' ? event.target.checked : event.target.value;
+    const row = event.target.closest('.editor-row');
+    if (field === 'name') row.querySelector(`label[for="time-${index}"] small`).textContent = getTimeRange(event.target.value).label;
+    validateSlots();
   });
   $('schedule-editor').addEventListener('click', event => {
     if (event.target.dataset.delete === undefined) return;
