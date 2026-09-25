@@ -17,7 +17,7 @@ ARDUINO_PORTS = [
     p.strip()
     for p in os.getenv(
         "ARDUINO_PORTS",
-        ARDUINO_PORT
+        f"{ARDUINO_PORT},COM4,COM5,/dev/ttyUSB0,/dev/ttyACM0,/dev/ttyUSB1"
     ).split(",")
     if p.strip()
 ]
