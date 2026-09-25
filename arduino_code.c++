@@ -2,9 +2,7 @@
 // Python sends LCD_IDLE:NEXT: MORNING|AT 08:00 AM for the scheduled time.
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
-#include <Servo.h>
-#include <stdlib.h>
-#include <math.h>
+#include <Servo.h>  
 
 // ==================================================
 // COMPONENTS
@@ -46,10 +44,10 @@ const int BUZZER_FREQUENCY = 1000;
 // SETUP
 // ==================================================
 
-float FULL_DISTANCE_CM = 3.0;
+const float FULL_DISTANCE_CM = 3.0;
 
-// Defaults until Python sends saved calibration, including after restart.
-float EMPTY_DISTANCE_CM = 20.0;
+// The feed hopper is empty at 20 cm or greater.
+const float EMPTY_DISTANCE_CM = 20.0;
 
 // Read the ultrasonic sensor every 500 milliseconds.
 const unsigned long SENSOR_INTERVAL = 500;
@@ -186,24 +184,6 @@ void loop() {
 // ==================================================
 
 void processCommand(String command) {
-  if (command.startsWith("CALIBRATE:")) {
-    String values = command.substring(10);
-    const char *start = values.c_str();
-    char *end;
-    float full = strtod(start, &end);
-    if (end == start || *end != ',') { Serial.println("ERROR:CALIBRATION"); return; }
-    start = end + 1;
-    float empty = strtod(start, &end);
-    if (end == start || *end != '\0' || !isfinite(full) || !isfinite(empty) ||
-        full < 0 || empty < 0.1 || empty <= full || empty > 500) {
-      Serial.println("ERROR:CALIBRATION"); return;
-    }
-    FULL_DISTANCE_CM = full;
-    EMPTY_DISTANCE_CM = empty;
-    updateFeedHopper();
-    Serial.println("CALIBRATION_OK");
-    return;
-  }
   if (command.startsWith("LCD_IDLE:")) {
     int separator = command.indexOf('|', 9);
     if (separator < 0) { Serial.println("ERROR:LCD_FORMAT"); return; }
