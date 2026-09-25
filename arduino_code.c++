@@ -4,6 +4,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <Servo.h>
 #include <stdlib.h>
+#include <avr/pgmspace.h>
 #include <math.h>  
 
 // ==================================================
@@ -119,17 +120,24 @@ void drawIdleScreen() {
 }
 
 void renderIdleSequence() {
+  static unsigned long lastDraw = 0;
   unsigned long now = millis();
+  bool changed = false;
   if (!idleSequenceStarted) {
     idleSequenceStarted = true;
     idleScreen = 0;
     idlePhaseStarted = now;
+    changed = true;
   }
   if (now - idlePhaseStarted >= LCD_SCREEN_MS) {
     idleScreen = (idleScreen + 1) % 3;
     idlePhaseStarted = now;
+    changed = true;
   }
-  drawIdleScreen();
+  if (changed || now - lastDraw >= SENSOR_INTERVAL) {
+    drawIdleScreen();
+    lastDraw = now;
+  }
 }
 
 void renderFeederLcd() {
@@ -194,8 +202,17 @@ void setup() {
 
   Serial.begin(9600);
   Serial.setTimeout(100);
+  // Bound heap allocations for the existing display state.
+  idleLine1.reserve(16); idleLine2.reserve(16);
+  feedingLabel.reserve(10); feedingState.reserve(16);
+  lastLine1.reserve(16); lastLine2.reserve(16);
+  lastCompletedFeed.reserve(10); nextFeedTitle.reserve(16); nextFeedTime.reserve(16);
 
   // LCD
+  Wire.begin();
+#if defined(WIRE_HAS_TIMEOUT)
+  Wire.setWireTimeout(25000UL, true); // A faulty LCD/I2C bus must not hang serial.
+#endif
   lcd.init();
   lcd.backlight();
   lcd.clear();
@@ -222,12 +239,12 @@ void setup() {
   noTone(BUZZER_PIN);
 
   lcd.setCursor(0, 0);
-  lcd.print("FEEDER READY");
+  lcd.print(F("FEEDER READY"));
 
   lcd.setCursor(0, 1);
-  lcd.print("WAITING FOR APP");
+  lcd.print(F("WAITING FOR APP"));
 
-  Serial.println("ARDUINO_READY");
+  Serial.println(F("ARDUINO_READY"));
 }
 
 
@@ -242,13 +259,27 @@ void loop() {
   }
   renderFeederLcd();
 
-  if (Serial.available() > 0) {
-
-    String command = Serial.readStringUntil('\n');
-    command.trim();
-    command.toUpperCase();
-
-    processCommand(command);
+  // Read without waiting for a timeout or allocating an unbounded String.
+  static char received[64];
+  static byte receivedLength = 0;
+  static bool overflow = false;
+  while (Serial.available() > 0) {
+    char ch = Serial.read();
+    if (ch == '\r' || ch == '\n') {
+      if (overflow) Serial.println(F("ERROR:COMMAND_TOO_LONG"));
+      else if (receivedLength > 0) {
+        received[receivedLength] = '\0';
+        String command(received);
+        command.trim();
+        command.toUpperCase();
+        processCommand(command);
+      }
+      receivedLength = 0;
+      overflow = false;
+    } else if (!overflow) {
+      if (receivedLength < sizeof(received) - 1) received[receivedLength++] = ch;
+      else overflow = true;
+    }
   }
 }
 
@@ -258,29 +289,29 @@ void loop() {
 // ==================================================
 
 void processCommand(String command) {
-  if (command.startsWith("CALIBRATE:")) {
+  if ((strncmp_P(command.c_str(), PSTR("CALIBRATE:"), sizeof("CALIBRATE:") - 1) == 0)) {
     String values = command.substring(10);
     const char *start = values.c_str();
     char *end;
     float full = strtod(start, &end);
-    if (end == start || *end != ',') { Serial.println("ERROR:CALIBRATION"); return; }
+    if (end == start || *end != ',') { Serial.println(F("ERROR:CALIBRATION")); return; }
     start = end + 1;
     float empty = strtod(start, &end);
     if (end == start || *end != '\0' || !isfinite(full) || !isfinite(empty) ||
         full < 0 || empty < 0.1 || empty <= full || empty > 500) {
-      Serial.println("ERROR:CALIBRATION"); return;
+      Serial.println(F("ERROR:CALIBRATION")); return;
     }
     FULL_DISTANCE_CM = full;
     EMPTY_DISTANCE_CM = empty;
     updateFeedHopper();
-    Serial.println("CALIBRATION_OK");
+    Serial.println(F("CALIBRATION_OK"));
     return;
   }
-  if (command.startsWith("LCD_IDLE:")) {
+  if ((strncmp_P(command.c_str(), PSTR("LCD_IDLE:"), sizeof("LCD_IDLE:") - 1) == 0)) {
     int separator = command.indexOf('|', 9);
-    if (separator < 0) { Serial.println("ERROR:LCD_FORMAT"); return; }
-    idleLine1 = command.substring(9, separator);
-    idleLine2 = command.substring(separator + 1);
+    if (separator < 0) { Serial.println(F("ERROR:LCD_FORMAT")); return; }
+    idleLine1 = command.substring(9, separator).substring(0, 16);
+    idleLine2 = command.substring(separator + 1).substring(0, 16);
     // Use the actual next feeding supplied by the saved dashboard schedule.
     nextFeedTitle = idleLine1;
     nextFeedTime = idleLine2.startsWith("AT ") ? idleLine2.substring(3) : idleLine2;
@@ -291,16 +322,16 @@ void processCommand(String command) {
       nextFeedTime = "Tom: " + nextFeedTime.substring(4);
     }
     renderFeederLcd();
-    Serial.println("LCD_OK");
+    Serial.println(F("LCD_OK"));
     return;
   }
-  if (command.startsWith("LCD_ACTIVE:") || command.startsWith("LCD_DONE:") ||
-      command.startsWith("LCD_FAIL:")) {
+  if ((strncmp_P(command.c_str(), PSTR("LCD_ACTIVE:"), sizeof("LCD_ACTIVE:") - 1) == 0) || (strncmp_P(command.c_str(), PSTR("LCD_DONE:"), sizeof("LCD_DONE:") - 1) == 0) ||
+      (strncmp_P(command.c_str(), PSTR("LCD_FAIL:"), sizeof("LCD_FAIL:") - 1) == 0)) {
     feedingLabel = command.substring(command.indexOf(':') + 1, command.length());
     feedingLabel = feedingLabel.substring(0, 10);
-    feedingState = command.startsWith("LCD_ACTIVE:") ? "DISPENSING..." :
-                   command.startsWith("LCD_DONE:") ? "COMPLETE" : "FAILED";
-    if (command.startsWith("LCD_DONE:")) {
+    feedingState = (strncmp_P(command.c_str(), PSTR("LCD_ACTIVE:"), sizeof("LCD_ACTIVE:") - 1) == 0) ? "DISPENSING..." :
+                   (strncmp_P(command.c_str(), PSTR("LCD_DONE:"), sizeof("LCD_DONE:") - 1) == 0) ? "COMPLETE" : "FAILED";
+    if ((strncmp_P(command.c_str(), PSTR("LCD_DONE:"), sizeof("LCD_DONE:") - 1) == 0)) {
       // Completion comes from the feeder, never from a display timer.
       if (feedingLabel.indexOf("MORNING") >= 0) {
         lastCompletedFeed = "Morning";
@@ -321,17 +352,17 @@ void processCommand(String command) {
     }
     completionStarted = millis();
     renderFeederLcd();
-    Serial.println("LCD_OK");
+    Serial.println(F("LCD_OK"));
     return;
   }
-  if (hopperEmpty && (command == "RED_OFF" || command == "BUZZER_OFF" ||
-      command == "ALL_LED_OFF" || command == "LCD_TEST")) {
-    if (command == "ALL_LED_OFF") {
+  if (hopperEmpty && ((strcmp_P(command.c_str(), PSTR("RED_OFF")) == 0) || (strcmp_P(command.c_str(), PSTR("BUZZER_OFF")) == 0) ||
+      (strcmp_P(command.c_str(), PSTR("ALL_LED_OFF")) == 0) || (strcmp_P(command.c_str(), PSTR("LCD_TEST")) == 0))) {
+    if ((strcmp_P(command.c_str(), PSTR("ALL_LED_OFF")) == 0)) {
       digitalWrite(MORNING_LED, LOW);
       digitalWrite(AFTERNOON_LED, LOW);
       digitalWrite(NIGHT_LED, LOW);
     }
-    Serial.println("ALARM_PROTECTED");
+    Serial.println(F("ALARM_PROTECTED"));
     return;
   }
 
@@ -341,18 +372,18 @@ void processCommand(String command) {
   // MORNING / BLUE LED
   // ------------------------------------------------
 
-  if (command == "MORNING_ON") {
+  if ((strcmp_P(command.c_str(), PSTR("MORNING_ON")) == 0)) {
 
     digitalWrite(MORNING_LED, HIGH);
 
-    Serial.println("MORNING_LED_ON");
+    Serial.println(F("MORNING_LED_ON"));
   }
 
-  else if (command == "MORNING_OFF") {
+  else if ((strcmp_P(command.c_str(), PSTR("MORNING_OFF")) == 0)) {
 
     digitalWrite(MORNING_LED, LOW);
 
-    Serial.println("MORNING_LED_OFF");
+    Serial.println(F("MORNING_LED_OFF"));
   }
 
 
@@ -360,18 +391,18 @@ void processCommand(String command) {
   // AFTERNOON / GREEN LED
   // ------------------------------------------------
 
-  else if (command == "AFTERNOON_ON") {
+  else if ((strcmp_P(command.c_str(), PSTR("AFTERNOON_ON")) == 0)) {
 
     digitalWrite(AFTERNOON_LED, HIGH);
 
-    Serial.println("AFTERNOON_LED_ON");
+    Serial.println(F("AFTERNOON_LED_ON"));
   }
 
-  else if (command == "AFTERNOON_OFF") {
+  else if ((strcmp_P(command.c_str(), PSTR("AFTERNOON_OFF")) == 0)) {
 
     digitalWrite(AFTERNOON_LED, LOW);
 
-    Serial.println("AFTERNOON_LED_OFF");
+    Serial.println(F("AFTERNOON_LED_OFF"));
   }
 
 
@@ -379,18 +410,18 @@ void processCommand(String command) {
   // NIGHT / YELLOW LED
   // ------------------------------------------------
 
-  else if (command == "NIGHT_ON") {
+  else if ((strcmp_P(command.c_str(), PSTR("NIGHT_ON")) == 0)) {
 
     digitalWrite(NIGHT_LED, HIGH);
 
-    Serial.println("NIGHT_LED_ON");
+    Serial.println(F("NIGHT_LED_ON"));
   }
 
-  else if (command == "NIGHT_OFF") {
+  else if ((strcmp_P(command.c_str(), PSTR("NIGHT_OFF")) == 0)) {
 
     digitalWrite(NIGHT_LED, LOW);
 
-    Serial.println("NIGHT_LED_OFF");
+    Serial.println(F("NIGHT_LED_OFF"));
   }
 
 
@@ -398,18 +429,18 @@ void processCommand(String command) {
   // RED WARNING LED
   // ------------------------------------------------
 
-  else if (command == "RED_ON") {
+  else if ((strcmp_P(command.c_str(), PSTR("RED_ON")) == 0)) {
 
     digitalWrite(RED_WARNING_LED, HIGH);
 
-    Serial.println("RED_LED_ON");
+    Serial.println(F("RED_LED_ON"));
   }
 
-  else if (command == "RED_OFF") {
+  else if ((strcmp_P(command.c_str(), PSTR("RED_OFF")) == 0)) {
 
     digitalWrite(RED_WARNING_LED, LOW);
 
-    Serial.println("RED_LED_OFF");
+    Serial.println(F("RED_LED_OFF"));
   }
 
 
@@ -417,21 +448,21 @@ void processCommand(String command) {
   // BUZZER
   // ------------------------------------------------
 
-  else if (command == "BUZZER_ON") {
+  else if ((strcmp_P(command.c_str(), PSTR("BUZZER_ON")) == 0)) {
 
     tone(
       BUZZER_PIN,
       BUZZER_FREQUENCY
     );
 
-    Serial.println("BUZZER_ON");
+    Serial.println(F("BUZZER_ON"));
   }
 
-  else if (command == "BUZZER_OFF") {
+  else if ((strcmp_P(command.c_str(), PSTR("BUZZER_OFF")) == 0)) {
 
     noTone(BUZZER_PIN);
 
-    Serial.println("BUZZER_OFF");
+    Serial.println(F("BUZZER_OFF"));
   }
 
 
@@ -439,23 +470,23 @@ void processCommand(String command) {
   // SERVO
   // ------------------------------------------------
 
-  else if (command == "SERVO_ROTATE") {
+  else if ((strcmp_P(command.c_str(), PSTR("SERVO_ROTATE")) == 0)) {
 
     feederServo.write(SERVO_ROTATE);
 
-    Serial.println("SERVO_ROTATING");
+    Serial.println(F("SERVO_ROTATING"));
   }
 
-  else if (command == "SERVO_STOP") {
+  else if ((strcmp_P(command.c_str(), PSTR("SERVO_STOP")) == 0)) {
 
     feederServo.write(SERVO_STOP);
 
-    Serial.println("SERVO_STOPPED");
+    Serial.println(F("SERVO_STOPPED"));
   }
 
-  else if (command == "SERVO_TEST") {
+  else if ((strcmp_P(command.c_str(), PSTR("SERVO_TEST")) == 0)) {
 
-    Serial.println("SERVO_TEST_START");
+    Serial.println(F("SERVO_TEST_START"));
 
     feederServo.write(SERVO_ROTATE);
 
@@ -463,7 +494,7 @@ void processCommand(String command) {
 
     feederServo.write(SERVO_STOP);
 
-    Serial.println("SERVO_TEST_COMPLETE");
+    Serial.println(F("SERVO_TEST_COMPLETE"));
   }
 
 
@@ -471,13 +502,14 @@ void processCommand(String command) {
   // ULTRASONIC
   // ------------------------------------------------
 
-  else if (command == "DISTANCE") {
+  else if ((strcmp_P(command.c_str(), PSTR("DISTANCE")) == 0)) {
 
     float distance = measureDistance();
 
-    Serial.print("DISTANCE:");
+    Serial.print(F("DISTANCE:"));
 
-    Serial.println(distance);
+    if (distance < 0) Serial.println(F("ERROR"));
+    else { Serial.print(distance, 1); Serial.println(F("CM")); }
   }
 
 
@@ -485,33 +517,33 @@ void processCommand(String command) {
   // LCD TEST
   // ------------------------------------------------
 
-  else if (command == "LCD_TEST") {
+  else if ((strcmp_P(command.c_str(), PSTR("LCD_TEST")) == 0)) {
     // Temporary screen: the normal display resumes without another command.
     lcdTestActive = true;
     lcdTestStarted = millis();
     renderFeederLcd();
-    Serial.println("LCD_TEST_OK");
+    Serial.println(F("LCD_TEST_OK"));
   }
 
   // ------------------------------------------------
   // ALL LEDs
   // ------------------------------------------------
 
-  else if (command == "ALL_LED_ON") {
+  else if ((strcmp_P(command.c_str(), PSTR("ALL_LED_ON")) == 0)) {
 
     digitalWrite(MORNING_LED, HIGH);
     digitalWrite(AFTERNOON_LED, HIGH);
     digitalWrite(NIGHT_LED, HIGH);
     digitalWrite(RED_WARNING_LED, HIGH);
 
-    Serial.println("ALL_LED_ON");
+    Serial.println(F("ALL_LED_ON"));
   }
 
-  else if (command == "ALL_LED_OFF") {
+  else if ((strcmp_P(command.c_str(), PSTR("ALL_LED_OFF")) == 0)) {
 
     turnOffAllLEDs();
 
-    Serial.println("ALL_LED_OFF");
+    Serial.println(F("ALL_LED_OFF"));
   }
 
 
@@ -519,9 +551,9 @@ void processCommand(String command) {
   // SYSTEM STATUS
   // ------------------------------------------------
 
-  else if (command == "PING") {
+  else if ((strcmp_P(command.c_str(), PSTR("PING")) == 0)) {
 
-    Serial.println("ARDUINO_CONNECTED");
+    Serial.println(F("ARDUINO_CONNECTED"));
   }
 
 
@@ -531,7 +563,7 @@ void processCommand(String command) {
 
   else {
 
-    Serial.print("UNKNOWN_COMMAND:");
+    Serial.print(F("UNKNOWN_COMMAND:"));
 
     Serial.println(command);
   }
@@ -547,8 +579,8 @@ void updateFeedHopper() {
   if (currentDistanceCm < 0) {
     // A missing echo does not clear an existing empty alarm.
     renderFeederLcd();
-    Serial.println("DISTANCE:ERROR");
-    Serial.println("SENSOR_ERROR");
+    Serial.println(F("DISTANCE:ERROR"));
+    Serial.println(F("SENSOR_ERROR"));
     return;
   }
   hopperEmpty = currentDistanceCm >= EMPTY_DISTANCE_CM;
@@ -564,9 +596,9 @@ void updateFeedHopper() {
     digitalWrite(RED_WARNING_LED, LOW);
   }
   renderFeederLcd();
-  Serial.print("DISTANCE:"); Serial.print(currentDistanceCm, 1); Serial.println("CM");
-  Serial.print("FEED_LEVEL:"); Serial.print(currentFeedPercentage, 0); Serial.println("%");
-  Serial.println(hopperEmpty ? "FEED_STATUS:EMPTY" : "FEED_STATUS:AVAILABLE");
+  Serial.print(F("DISTANCE:")); Serial.print(currentDistanceCm, 1); Serial.println(F("CM"));
+  Serial.print(F("FEED_LEVEL:")); Serial.print(currentFeedPercentage, 0); Serial.println(F("%"));
+  Serial.println(hopperEmpty ? F("FEED_STATUS:EMPTY") : F("FEED_STATUS:AVAILABLE"));
 }
 
 
