@@ -70,17 +70,26 @@ unsigned long lcdTestStarted = 0;
 String lastLine1 = "";
 String lastLine2 = "";
 
-// Idle LCD rotation: flash -> Morning -> flash -> Afternoon -> flash -> distance.
-// Default times can be edited here; LCD_IDLE updates the matching next-feed time.
-String morningSchedule = "08:00 AM";
-String afternoonSchedule = "12:00 PM";
+// Three-page rotation after a confirmed feeding: Complete -> Next -> distance.
+// Python remains responsible for actual feeding times and daily scheduling.
+String lastCompletedFeed = "";
+String nextFeedTitle = "Next: Morning";
+String nextFeedTime = "06:00 AM";
 const unsigned long LCD_SCREEN_MS = 3000UL;
-const unsigned long LCD_FLASH_MS = 200UL;
+const unsigned long EMPTY_BLINK_MS = 500UL;
 byte idleScreen = 0;
-byte idleFlashStep = 0;
 bool idleSequenceStarted = false;
-bool idleFlashing = true;
 unsigned long idlePhaseStarted = 0;
+bool emptyDisplayActive = false;
+unsigned long emptyDisplayStarted = 0;
+bool displayBacklightOn = true;
+
+void setDisplayBacklight(bool enabled) {
+  if (enabled == displayBacklightOn) return;
+  displayBacklightOn = enabled;
+  if (enabled) lcd.backlight();
+  else lcd.noBacklight();
+}
 
 void writeLcdLines(String first, String second) {
   first = first.substring(0, 16);
@@ -96,11 +105,15 @@ void writeLcdLines(String first, String second) {
 
 void drawIdleScreen() {
   if (idleScreen == 0) {
-    writeLcdLines("Morning", morningSchedule);
+    if (lastCompletedFeed.length() > 0) {
+      writeLcdLines(lastCompletedFeed + " Feed", "Complete");
+    } else {
+      writeLcdLines("Feeder Ready", "Awaiting feed");
+    }
   } else if (idleScreen == 1) {
-    writeLcdLines("Afternoon", afternoonSchedule);
+    writeLcdLines(nextFeedTitle, nextFeedTime);
   } else {
-    writeLcdLines("Sensor Distance", currentDistanceCm < 0
+    writeLcdLines("Container Level:", currentDistanceCm < 0
       ? String("No sensor echo") : String(currentDistanceCm, 1) + " cm");
   }
 }
@@ -110,52 +123,50 @@ void renderIdleSequence() {
   if (!idleSequenceStarted) {
     idleSequenceStarted = true;
     idleScreen = 0;
-    idleFlashStep = 0;
-    idleFlashing = true;
     idlePhaseStarted = now;
-    lcd.noBacklight();
   }
-  if (idleFlashing) {
-    if (now - idlePhaseStarted >= LCD_FLASH_MS) {
-      idlePhaseStarted = now;
-      idleFlashStep++;
-      if (idleFlashStep % 2 == 1) lcd.backlight();
-      else lcd.noBacklight();
-      if (idleFlashStep >= 3) {
-        idleFlashing = false;
-        drawIdleScreen();
-      }
-    }
-    return;
-  }
-  drawIdleScreen(); // Uses the existing live sensor reading; no extra pulseIn.
   if (now - idlePhaseStarted >= LCD_SCREEN_MS) {
     idleScreen = (idleScreen + 1) % 3;
-    idleFlashStep = 0;
-    idleFlashing = true;
     idlePhaseStarted = now;
-    lcd.noBacklight();
   }
+  drawIdleScreen();
 }
 
 void renderFeederLcd() {
-  if (lcdTestActive && millis() - lcdTestStarted >= 1500UL) {
-    lcdTestActive = false;
-  }
+  unsigned long now = millis();
+  if (lcdTestActive && now - lcdTestStarted >= 1500UL) lcdTestActive = false;
   if ((feedingState == "COMPLETE" || feedingState == "FAILED") &&
-      millis() - completionStarted >= 5000UL) feedingState = "";
-  // Interrupt flashing immediately for alarms, feeding, or hardware diagnostics.
-  if (hopperEmpty || currentDistanceCm < 0 || feedingState.length() > 0 || lcdTestActive) {
-    if (idleSequenceStarted) lcd.backlight();
-    idleSequenceStarted = false;
-  }
+      now - completionStarted >= 5000UL) feedingState = "";
+
+  // Empty warning interrupts every screen, including feeding and diagnostics.
   if (hopperEmpty) {
-    writeLcdLines("FEED EMPTY", "PLEASE REFILL");
-  } else if (currentDistanceCm < 0) {
+    idleSequenceStarted = false;
+    if (!emptyDisplayActive) {
+      emptyDisplayActive = true;
+      emptyDisplayStarted = now;
+    }
+    unsigned long elapsed = now - emptyDisplayStarted;
+    setDisplayBacklight((elapsed / EMPTY_BLINK_MS) % 2 == 0);
+    // A 16x2 cannot fit the two-line warning and distance simultaneously.
+    // Alternate the refill instruction and distance, always keeping Feed Empty.
+    if ((elapsed / LCD_SCREEN_MS) % 2 == 0) {
+      writeLcdLines("Feed Empty", "Please Refill!");
+    } else {
+      writeLcdLines("Feed Empty", currentDistanceCm < 0
+        ? String("No sensor echo") : String(currentDistanceCm, 1) + " cm");
+    }
+    return;
+  }
+  emptyDisplayActive = false;
+  setDisplayBacklight(true);
+  if (currentDistanceCm < 0) {
+    idleSequenceStarted = false;
     writeLcdLines("SENSOR ERROR", "CHECK SENSOR");
-  } else if (feedingState.length() > 0) {
+  } else if (feedingState == "DISPENSING..." || feedingState == "FAILED") {
+    idleSequenceStarted = false;
     writeLcdLines(feedingLabel + " FEED", feedingState);
   } else if (lcdTestActive) {
+    idleSequenceStarted = false;
     writeLcdLines("HARDWARE TEST", "LCD WORKING");
   } else {
     renderIdleSequence();
@@ -270,10 +281,14 @@ void processCommand(String command) {
     if (separator < 0) { Serial.println("ERROR:LCD_FORMAT"); return; }
     idleLine1 = command.substring(9, separator);
     idleLine2 = command.substring(separator + 1);
-    // Keep displayed times aligned when the dashboard announces the next slot.
-    if (idleLine2.startsWith("AT ")) {
-      if (idleLine1.indexOf("MORNING") >= 0) morningSchedule = idleLine2.substring(3);
-      if (idleLine1.indexOf("AFTERNOON") >= 0) afternoonSchedule = idleLine2.substring(3);
+    // Use the actual next feeding supplied by the saved dashboard schedule.
+    nextFeedTitle = idleLine1;
+    nextFeedTime = idleLine2.startsWith("AT ") ? idleLine2.substring(3) : idleLine2;
+    if (idleLine1 == "ALL FEEDS DONE" && idleLine2.startsWith("NEXT: TOM ")) {
+      nextFeedTitle = "Next: Morning";
+      nextFeedTime = "Tom: " + idleLine2.substring(10);
+    } else if (nextFeedTime.startsWith("TOM ")) {
+      nextFeedTime = "Tom: " + nextFeedTime.substring(4);
     }
     renderFeederLcd();
     Serial.println("LCD_OK");
@@ -285,6 +300,25 @@ void processCommand(String command) {
     feedingLabel = feedingLabel.substring(0, 10);
     feedingState = command.startsWith("LCD_ACTIVE:") ? "DISPENSING..." :
                    command.startsWith("LCD_DONE:") ? "COMPLETE" : "FAILED";
+    if (command.startsWith("LCD_DONE:")) {
+      // Completion comes from the feeder, never from a display timer.
+      if (feedingLabel.indexOf("MORNING") >= 0) {
+        lastCompletedFeed = "Morning";
+        nextFeedTitle = "Next: Afternoon";
+        nextFeedTime = "12:00 PM";
+      } else if (feedingLabel.indexOf("AFTERNOON") >= 0) {
+        lastCompletedFeed = "Afternoon";
+        nextFeedTitle = "Next: Evening";
+        nextFeedTime = "06:00 PM";
+      } else if (feedingLabel.indexOf("EVENING") >= 0 || feedingLabel.indexOf("NIGHT") >= 0) {
+        lastCompletedFeed = "Evening";
+        nextFeedTitle = "Next: Morning";
+        nextFeedTime = "Tom: 06:00 AM";
+      } else {
+        lastCompletedFeed = feedingLabel;
+      }
+      idleSequenceStarted = false;
+    }
     completionStarted = millis();
     renderFeederLcd();
     Serial.println("LCD_OK");
