@@ -92,5 +92,13 @@ class AccountTests(unittest.TestCase):
             self.assertEqual(self.post('/api/auth/login',dict(email='nobody@example.com',password='wrong')).status_code,401)
         self.assertEqual(self.post('/api/auth/login',dict(email='nobody@example.com',password='wrong')).status_code,429)
 
+    def test_app_registers_public_routes(self):
+        app_rules = {str(rule) for rule in self.app.url_map.iter_rules()}
+        self.assertIn('/static/<path:filename>', app_rules)
+        self.assertIn('/', app_rules)
+        self.assertIn('/api/auth/session', app_rules)
+        self.assertIn('/api/auth/register', app_rules)
+        self.assertIn('/api/auth/login', app_rules)
+
 if __name__=='__main__':
     unittest.main()
