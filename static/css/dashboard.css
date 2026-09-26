@@ -41,6 +41,8 @@ h1,h2,h3,.brand,.metric{font-family:Manrope,Arial,sans-serif}
 .alert small{display:block;font-size:10px;color:var(--muted);margin-top:6px}
 .alert-symbol{font-size:19px;color:#59987d}
 .warning .alert-symbol{color:#bd8b30}
+:root[data-theme="dark"] .alert.warning{background:var(--danger-bg);border-color:var(--danger-text)}
+:root[data-theme="dark"] .alert.warning .alert-symbol{color:var(--danger-text)}
 @media(min-width:1500px){
 .hero{min-height:260px}
 }

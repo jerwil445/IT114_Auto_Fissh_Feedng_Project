@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() if csrf_token is defined else '' }}">
   <title>AquaFeed Pro · {{ {'dashboard':'Monitoring Dashboard','control':'Feeder Control','history':'Feeding History','hardware':'Hardware Tests'}[page] }}</title>
+  <script>try{const saved=localStorage.getItem('aquafeed-theme');document.documentElement.dataset.theme=saved==='dark'||(!saved&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'}catch{document.documentElement.dataset.theme=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css', v='2') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/' + page + '.css', v='2') }}">
   <script src="{{ url_for('static', filename='js/common.js') }}" defer></script>

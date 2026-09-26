@@ -9,6 +9,7 @@ const formatTime = value => {
 };
 function applyTheme(theme) {
   const normalized = theme === 'dark' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = normalized;
   document.body.dataset.theme = normalized;
   const button = $('theme-toggle');
   if (button) {

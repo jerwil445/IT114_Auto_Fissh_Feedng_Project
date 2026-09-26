@@ -22,7 +22,7 @@
   --toggle-accent:#0d5f5c;
 }
 
-body[data-theme="dark"]{
+:root[data-theme="dark"]{
   --ink:#ebf7f4;
   --muted:#9bb4b0;
   --teal:#63e0ce;
