@@ -92,6 +92,33 @@ class AccountTests(unittest.TestCase):
             self.assertEqual(self.post('/api/auth/login',dict(email='nobody@example.com',password='wrong')).status_code,401)
         self.assertEqual(self.post('/api/auth/login',dict(email='nobody@example.com',password='wrong')).status_code,429)
 
+    def test_history_pagination(self):
+        self.register()
+        with self.feeder.store.connect() as db:
+            for index, status in enumerate(('Successful', 'Warning', 'Failed'), start=1):
+                db.execute(
+                    'INSERT INTO events(timestamp,kind,trigger,portion,status,message) VALUES(?,?,?,?,?,?)',
+                    (f'2026-01-01T00:00:0{index}:00+00:00', 'feeding', 'manual', 'Test feed', status, f'History row {index}')
+                )
+        response = self.client.get('/api/history?page=1&limit=2')
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload['events']), 2)
+        self.assertEqual(payload['page'], 1)
+        self.assertEqual(payload['limit'], 2)
+        self.assertEqual(payload['total'], 3)
+        self.assertEqual(payload['pages'], 2)
+        self.assertTrue(payload['has_prev'] is False)
+        self.assertTrue(payload['has_next'] is True)
+
+        second_page = self.client.get('/api/history?page=2&limit=2')
+        self.assertEqual(second_page.status_code, 200)
+        second_payload = second_page.get_json()
+        self.assertEqual(len(second_payload['events']), 1)
+        self.assertEqual(second_payload['page'], 2)
+        self.assertEqual(second_payload['has_prev'], True)
+        self.assertEqual(second_payload['has_next'], False)
+
     def test_app_registers_public_routes(self):
         app_rules = {str(rule) for rule in self.app.url_map.iter_rules()}
         self.assertIn('/static/<path:filename>', app_rules)

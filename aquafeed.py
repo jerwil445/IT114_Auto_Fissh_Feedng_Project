@@ -94,10 +94,50 @@ class Feeder:
         with self.db() as db:
             db.execute("INSERT INTO events(timestamp,kind,trigger,portion,status,message) VALUES(?,?,?,?,?,?)", (self.now().isoformat(), kind, trigger, portion, status, message))
 
-    def history(self, before=None, limit=15, kind=None):
+    def history(self, before=None, limit=15, kind=None, page=None):
+        if limit < 1:
+            raise ValueError("Limit must be 1 or greater.")
+
         with self.db() as db:
-            rows = db.execute("SELECT * FROM events WHERE (CAST(? AS BIGINT) IS NULL OR id < ?) AND (CAST(? AS TEXT) IS NULL OR kind = ?) ORDER BY id DESC LIMIT ?", (before, before, kind, kind, limit + 1)).fetchall()
-        return {"events": [dict(row) for row in rows[:limit]], "has_more": len(rows) > limit}
+            where = ["1=1"]
+            params = []
+
+            if before is not None:
+                where.append("id < ?")
+                params.append(before)
+            if kind is not None:
+                where.append("kind = ?")
+                params.append(kind)
+
+            if page is not None:
+                if page < 1:
+                    raise ValueError("Page must be 1 or greater.")
+                total = db.execute(
+                    f"SELECT COUNT(*) AS total FROM events WHERE {' AND '.join(where)}",
+                    tuple(params),
+                ).fetchone()['total']
+                offset = (page - 1) * limit
+                pages = (total + limit - 1) // limit if total else 1
+                rows = db.execute(
+                    f"SELECT * FROM events WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT ? OFFSET ?",
+                    (*params, limit, offset),
+                ).fetchall()
+                return {
+                    "events": [dict(row) for row in rows],
+                    "total": total,
+                    "page": page,
+                    "limit": limit,
+                    "pages": pages,
+                    "has_prev": page > 1,
+                    "has_next": page < pages,
+                    "has_more": page < pages,
+                }
+
+            rows = db.execute(
+                f"SELECT * FROM events WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT ?",
+                (*params, limit + 1),
+            ).fetchall()
+            return {"events": [dict(row) for row in rows[:limit]], "has_more": len(rows) > limit}
 
     def save(self, data):
         if not isinstance(data, dict):
