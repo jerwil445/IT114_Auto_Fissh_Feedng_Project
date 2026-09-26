@@ -1,11 +1,39 @@
 const $ = id => document.getElementById(id);
 let monitor = null;
+const THEME_STORAGE_KEY = 'aquafeed-theme';
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const formatDate = value => new Date(value).toLocaleString('en-US', {timeZone: monitor?.timezone || 'Asia/Manila', month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
 const formatTime = value => {
   const [hour, minute] = value.split(':').map(Number);
   return `${hour % 12 || 12}:${String(minute).padStart(2,'0')} ${hour >= 12 ? 'PM' : 'AM'}`;
 };
+function applyTheme(theme) {
+  const normalized = theme === 'dark' ? 'dark' : 'light';
+  document.body.dataset.theme = normalized;
+  const button = $('theme-toggle');
+  if (button) {
+    button.textContent = normalized === 'dark' ? '☀️ Light mode' : '🌙 Dark mode';
+    button.setAttribute('aria-pressed', String(normalized === 'dark'));
+  }
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, normalized);
+  } catch (error) {
+    // Ignore storage errors in restricted contexts.
+  }
+}
+function initialiseTheme() {
+  try {
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    const preferredDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    applyTheme(savedTheme || (preferredDark ? 'dark' : 'light'));
+  } catch (error) {
+    applyTheme('light');
+  }
+  const media = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+  media?.addEventListener?.('change', event => {
+    if (!localStorage.getItem(THEME_STORAGE_KEY)) applyTheme(event.matches ? 'dark' : 'light');
+  });
+}
 function notice(message, error = false) {
   $('notice').textContent = message;
   $('notice').className = 'notice' + (error ? ' error' : '');
@@ -39,6 +67,13 @@ async function refresh() {
     setTimeout(refresh, 3000);
   }
 }
+initialiseTheme();
+
+$('theme-toggle')?.addEventListener('click', () => {
+  const nextTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+  applyTheme(nextTheme);
+});
+
 $('today').textContent = new Date().toLocaleDateString('en-US', {timeZone:'Asia/Manila', weekday:'short', month:'short', day:'numeric', year:'numeric'});
 
 $('logout-button')?.addEventListener('click', async event => {
