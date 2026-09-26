@@ -12,7 +12,7 @@
   <script src="{{ url_for('static', filename='js/' + page + '.js') }}" defer></script>
 </head>
 <body data-page="{{ page }}">
-  <aside class="sidebar">
+  <aside class="sidebar" id="app-sidebar">
     <a class="brand" href="/"><span class="brand-icon">≈</span><span>AquaFeed <b>Pro</b><small>SMART AQUACULTURE</small></span></a>
     <div class="nav-label">WORKSPACE</div>
     <nav aria-label="Primary navigation">
@@ -24,9 +24,11 @@
     {% if current_user %}<div class="account-menu"><span>Signed in as <strong>{{ current_user.name }}</strong></span><button type="button" id="logout-button">Log out</button></div>{% endif %}
     <div class="sidebar-bottom"><div class="mini-wave">≈ ≈ ≈</div><strong>A little care. Every day.</strong><p>Consistent feeding for a thriving aquatic environment.</p><a href="/hardware-test">Open hardware diagnostics ↗</a></div>
   </aside>
+  <button type="button" class="sidebar-backdrop" id="sidebar-backdrop" aria-label="Close navigation" hidden></button>
   <div class="workspace">
     <header class="topbar">
-      <span>Aquarium workspace <span class="slash">/</span> <b>{{ {'dashboard':'Overview','control':'Controls & schedule','history':'Activity & logs','hardware':'Hardware diagnostics'}[page] }}</b></span>
+      <button type="button" id="mobile-nav-toggle" class="mobile-nav-toggle" aria-label="Open navigation menu" aria-controls="app-sidebar" aria-expanded="false"><span aria-hidden="true">☰</span></button>
+      <span class="topbar-context">Aquarium workspace <span class="slash">/</span> <b>{{ {'dashboard':'Overview','control':'Controls & schedule','history':'Activity & logs','hardware':'Hardware diagnostics'}[page] }}</b></span>
       <div class="topbar-actions">
         <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" aria-pressed="false">🌙 Dark mode</button>
         <span id="connection" class="badge neutral" role="status">Checking device…</span>

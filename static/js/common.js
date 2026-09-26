@@ -92,6 +92,53 @@ $('theme-toggle')?.addEventListener('click', () => {
   applyTheme(nextTheme);
 });
 
+const mobileNavToggle = $('mobile-nav-toggle');
+const appSidebar = $('app-sidebar');
+const sidebarBackdrop = $('sidebar-backdrop');
+const mobileNavMedia = window.matchMedia('(max-width: 850px)');
+
+function closeMobileNav(returnFocus = false) {
+  appSidebar.classList.remove('is-open');
+  sidebarBackdrop.hidden = true;
+  document.body.classList.remove('nav-open');
+  mobileNavToggle.setAttribute('aria-expanded', 'false');
+  mobileNavToggle.setAttribute('aria-label', 'Open navigation menu');
+  appSidebar.inert = mobileNavMedia.matches;
+  appSidebar.setAttribute('aria-hidden', String(mobileNavMedia.matches));
+  if (returnFocus) mobileNavToggle.focus();
+}
+
+function openMobileNav() {
+  if (!mobileNavMedia.matches) return;
+  sidebarBackdrop.hidden = false;
+  appSidebar.inert = false;
+  appSidebar.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('nav-open');
+  mobileNavToggle.setAttribute('aria-expanded', 'true');
+  mobileNavToggle.setAttribute('aria-label', 'Close navigation menu');
+  requestAnimationFrame(() => appSidebar.classList.add('is-open'));
+  appSidebar.querySelector('nav a')?.focus();
+}
+
+mobileNavToggle?.addEventListener('click', () => {
+  if (mobileNavToggle.getAttribute('aria-expanded') === 'true') closeMobileNav(true);
+  else openMobileNav();
+});
+sidebarBackdrop?.addEventListener('click', () => closeMobileNav(true));
+appSidebar.querySelectorAll('nav a').forEach(link => link.addEventListener('click', () => closeMobileNav()));
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && mobileNavToggle.getAttribute('aria-expanded') === 'true') closeMobileNav(true);
+});
+mobileNavMedia.addEventListener('change', event => {
+  closeMobileNav();
+  appSidebar.inert = event.matches;
+  appSidebar.setAttribute('aria-hidden', String(event.matches));
+});
+if (mobileNavMedia.matches) {
+  appSidebar.inert = true;
+  appSidebar.setAttribute('aria-hidden', 'true');
+}
+
 $('today').textContent = new Date().toLocaleDateString('en-US', {timeZone:'Asia/Manila', weekday:'short', month:'short', day:'numeric', year:'numeric'});
 
 $('logout-button')?.addEventListener('click', async event => {
