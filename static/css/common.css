@@ -116,6 +116,9 @@ input[type=checkbox]{accent-color:var(--teal)}
 .empty{padding:36px 15px;text-align:center;color:var(--muted);line-height:1.8;font-size:13px}
 .notice{padding:15px 18px;border-radius:9px;background:#e4f4eb;color:#246c4f;margin-bottom:20px;border:1px solid #cee7d8;font-size:13px}
 .notice.error{background:#fff0ec;border-color:#f1d5ce;color:#aa4b3b}
+.app-toast{position:fixed;right:24px;top:94px;z-index:1000;max-width:min(420px,calc(100vw - 32px));padding:15px 18px;border:1px solid var(--success-text);border-radius:10px;background:var(--success-bg);color:var(--success-text);box-shadow:0 8px 28px var(--shadow);font-size:13px;font-weight:600;opacity:0;transform:translateY(-10px);pointer-events:none;transition:opacity .2s ease,transform .2s ease}
+.app-toast.visible{opacity:1;transform:translateY(0)}
+.app-toast.error{background:var(--danger-bg);border-color:var(--danger-text);color:var(--danger-text)}
 dialog{max-width:440px;border:1px solid var(--line);border-radius:15px;padding:28px;color:var(--ink);background:var(--panel)}
 dialog::backdrop{background:#153e3970}
 dialog p{color:var(--muted);font-size:13px}

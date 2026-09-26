@@ -164,7 +164,7 @@ $('settings-form').addEventListener('submit', async event => {
         slot._originalTime = slot.time;
         slot._originalCompleted = Boolean(slot.completed_today);
       });
-      notice('Schedule saved. Your feeding settings are up to date.');
+      showToast('Settings saved successfully.');
     } catch (error) { notice(error.message, true); }
     finally { $('save').disabled = false; }
   });

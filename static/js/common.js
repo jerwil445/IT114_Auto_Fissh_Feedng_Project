@@ -40,6 +40,23 @@ function notice(message, error = false) {
   $('notice').className = 'notice' + (error ? ' error' : '');
   $('notice').hidden = false;
 }
+let toastTimer;
+function showToast(message, error = false) {
+  let toast = $('app-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'app-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    document.body.append(toast);
+  }
+  toast.textContent = message;
+  toast.className = `app-toast${error ? ' error' : ''} visible`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove('visible');
+  }, 4000);
+}
 async function api(path, options = {}) {
   const headers = new Headers(options.headers);
   headers.set('X-CSRF-Token', document.querySelector('meta[name="csrf-token"]')?.content || '');
