@@ -274,10 +274,8 @@ def distance():
 # ==========================================
 
 from aquafeed import setup_aquafeed
-from pages.landing import setup_auth
 
 feeder = setup_aquafeed(app, send_command, get_connection)
-setup_auth(app, feeder.store)
 
 
 if __name__ == "__main__":
