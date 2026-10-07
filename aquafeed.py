@@ -14,7 +14,7 @@ from serial_protocol import EMPTY_DISTANCE_CM, feed_percentage, parse_distance
 
 DEFAULTS = {
     "automation": False,
-    "angle": 90,
+    "angle": 75,
     "duration": 3,
     "full_distance": 3,
     "empty_distance": EMPTY_DISTANCE_CM,
@@ -88,6 +88,7 @@ class Feeder:
             settings = json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()['value'])
         settings.setdefault("empty_distance", EMPTY_DISTANCE_CM)
         settings["calibrated"] = True
+        settings["angle"] = max(60, min(75, settings.get("angle", 75)))
         if not 0 <= settings["full_distance"] < settings["empty_distance"]:
             settings["full_distance"] = DEFAULTS["full_distance"]
         return settings
@@ -194,7 +195,7 @@ class Feeder:
             if not isinstance(data.get(key), bool):
                 raise ValueError("Automation and calibration must be on or off.")
             cleaned[key] = data[key]
-        for key, minimum, maximum in (("angle", 45, 180), ("duration", 0.1, 60), ("full_distance", 0, 500), ("empty_distance", 0.1, 500)):
+        for key, minimum, maximum in (("angle", 60, 75), ("duration", 0.1, 60), ("full_distance", 0, 500), ("empty_distance", 0.1, 500)):
             value = data.get(key)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not minimum <= value <= maximum:
                 raise ValueError(f"{key.replace('_', ' ').title()} must be between {minimum} and {maximum}.")
