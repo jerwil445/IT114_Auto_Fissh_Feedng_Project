@@ -30,8 +30,6 @@ function renderDashboard(data) {
   $('next-feeding').textContent = data.next ? `${formatDate(data.next.at)} · ${data.next.name}` : 'No automatic feeding scheduled';
   $('next-portion').textContent = data.next ? data.next.portion : 'Enable automation in Feeder Control';
   renderHopper(data.level);
-  $('distance').textContent = data.distance === null ? '—' : data.distance.toFixed(1);
-  $('sensor-status').textContent = data.distance === null ? 'No valid sensor response' : 'Live reading from controller';
   $('valve').textContent = data.valve;
   if (data.connected && data.hopper_empty) {
     $('operation').textContent = 'FEED EMPTY - PLEASE REFILL';
@@ -72,11 +70,43 @@ function onMonitorError() {
   $('dashboard-feed-now').textContent = 'Feed Now';
   $('operation').textContent = 'Connection unknown';
   $('operation-detail').textContent = 'The server is unavailable. Reconnecting automatically.';
-  $('distance').textContent = '--';
   renderHopper(null);
-  $('sensor-status').textContent = 'Live reading unavailable';
   $('valve').textContent = 'Unknown';
 }
 setInterval(countdown, 1000);
 
 refresh();
+
+// Independent, lightweight sensor updates; no smoothing that could hide an empty reading.
+let sensorSnapshot = null;
+let sensorReceivedAt = 0;
+function renderSensor() {
+  const sample = sensorSnapshot;
+  const elapsed = (performance.now() - sensorReceivedAt) / 1000;
+  const age = sample && Number.isFinite(sample.age_seconds) ? sample.age_seconds + elapsed : null;
+  const live = sample?.status === 'live' && age !== null && age <= 5 && Number.isFinite(sample.distance);
+  $('distance').textContent = live ? sample.distance.toFixed(1) : '--';
+  const messages = {waiting:'Waiting for first sensor reading', disconnected:'Device disconnected',
+    no_echo:'No valid echo - check the sensor', stale:'Reading expired - waiting for an update',
+    unavailable:'Sensor updates unavailable - reconnecting'};
+  $('sensor-status').textContent = live
+    ? `Live reading - ${age < 1 ? 'just now' : `${Math.floor(age)}s ago`}`
+    : messages[sample?.status === 'live' ? 'stale' : sample?.status || 'waiting'];
+}
+async function refreshSensor() {
+  if (!document.hidden) {
+    try {
+      const response = await fetch('/api/sensor', {cache:'no-store', signal:AbortSignal.timeout(4000)});
+      if (!response.ok) throw new Error('Sensor unavailable');
+      sensorSnapshot = await response.json();
+      sensorReceivedAt = performance.now();
+    } catch (error) {
+      sensorSnapshot = {status:'unavailable', distance:null};
+    }
+    renderSensor();
+  }
+  setTimeout(refreshSensor, 1000);
+}
+setInterval(renderSensor, 500); // Expire old readings even while a network request is pending.
+document.addEventListener('visibilitychange', renderSensor);
+refreshSensor();

@@ -16,4 +16,10 @@ def create_blueprint(feeder):
         return jsonify(feeder.snapshot())
 
 
+    @blueprint.get("/api/sensor")
+    def sensor_api():
+        response = jsonify(feeder.sensor_snapshot())
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
     return blueprint

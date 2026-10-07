@@ -62,6 +62,7 @@ class Feeder:
         self.state_lock = threading.RLock()
         self.worker = None
         self.state = {"connected": False, "port": None, "operation": "Ready", "valve": "Unknown", "distance": None, "level": None, "updated_at": None}
+        self.sensor_sample = None
         self.last_connection = None
         self.calibration_sent = None
         self.calibration_sent_at = 0
@@ -89,6 +90,25 @@ class Feeder:
         if not 0 <= settings["full_distance"] < settings["empty_distance"]:
             settings["full_distance"] = DEFAULTS["full_distance"]
         return settings
+
+    def record_sensor(self, distance, connected, sampled_at=None):
+        # Timestamp this measurement, not a later schedule/database update.
+        with self.state_lock:
+            self.sensor_sample = (distance, connected, time.monotonic() if sampled_at is None else sampled_at)
+
+    def sensor_snapshot(self):
+        # Read-only cache: polling never triggers extra serial commands or DB reads.
+        with self.state_lock:
+            sample = self.sensor_sample
+            connection = self.state['connected']
+        if sample is None:
+            return {'distance': None, 'age_seconds': None, 'status': 'waiting'}
+        distance, connected, sampled_at = sample
+        age = max(0, time.monotonic() - sampled_at)
+        status = ('disconnected' if not connected or not connection else
+                  'stale' if age > 5 else 'no_echo' if distance is None else 'live')
+        return {'distance': distance if status == 'live' else None,
+                'age_seconds': round(age, 1), 'status': status}
 
     def log(self, kind, status, message, trigger=None, portion=None):
         with self.db() as db:
@@ -444,6 +464,7 @@ class Feeder:
             self.log("system", "Info" if connected else "Warning", "Arduino connected." if connected else "Arduino disconnected. Check USB and power.")
             self.last_connection = connected
         distance = None
+        sensor_read_started = time.monotonic()
         calibration = (settings['full_distance'], settings['empty_distance'])
         if not connected:
             self.calibration_sent = None
@@ -456,8 +477,10 @@ class Feeder:
                 self.calibration_sent_at = time.monotonic()
                 with self.state_lock:
                     self.state['calibration_synced'] = reply == 'CALIBRATION_OK'
+            sensor_read_started = time.monotonic()
             response = self.send("DISTANCE")
             distance = parse_distance(response)
+        self.record_sensor(distance, connected, sensor_read_started)
         level = feed_percentage(distance, settings["full_distance"], settings["empty_distance"])
         empty = distance >= self.settings()["empty_distance"] if distance is not None else None
         if level is not None:
