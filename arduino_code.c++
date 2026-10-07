@@ -34,7 +34,7 @@ const byte TRIG_PIN = 12;
 // ==================================================
 
 const int SERVO_STOP = 90;
-const int SERVO_ROTATE = 60;
+int SERVO_ROTATE = 60; // Saved opening angle; updated before feeding.
 
 // ==================================================
 // BUZZER
@@ -289,6 +289,18 @@ void loop() {
 // ==================================================
 
 void processCommand(String command) {
+  if (strncmp_P(command.c_str(), PSTR("SERVO_ANGLE:"), 12) == 0) {
+    const char *start = command.c_str() + 12;
+    char *end;
+    long angle = strtol(start, &end, 10);
+    if (end == start || *end != '\0' || angle < 60 || angle > 75) {
+      Serial.println(F("ERROR:SERVO_ANGLE"));
+      return;
+    }
+    SERVO_ROTATE = (int)angle; // Stores setting; SERVO_ROTATE starts movement.
+    Serial.println(F("SERVO_ANGLE_OK"));
+    return;
+  }
   if ((strncmp_P(command.c_str(), PSTR("CALIBRATE:"), sizeof("CALIBRATE:") - 1) == 0)) {
     String values = command.substring(10);
     const char *start = values.c_str();

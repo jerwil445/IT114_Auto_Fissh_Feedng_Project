@@ -17,6 +17,7 @@ class FeederTests(unittest.TestCase):
         self.send = Mock(return_value='OK')
         self.connection = Mock(return_value={'connected': True, 'port': 'COM5'})
         self.feeder = Feeder(self.send, self.connection, self.database)
+        self.feeder.angle_command = ""  # Legacy actuator tests; saved-angle protocol covered separately.
 
     def tearDown(self):
         self.temp.cleanup()

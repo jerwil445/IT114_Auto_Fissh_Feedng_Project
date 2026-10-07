@@ -57,7 +57,7 @@ class Feeder:
                 raise
             # Windows Python may not include the IANA database. Manila uses UTC+8.
             self.zone = timezone(timedelta(hours=8), name="Asia/Manila")
-        self.angle_command = os.getenv("SERVO_ANGLE_COMMAND", "")
+        self.angle_command = os.getenv("SERVO_ANGLE_COMMAND") or "SERVO_ANGLE:{angle}"
         self.feed_lock = threading.Lock()
         self.state_lock = threading.RLock()
         self.worker = None
@@ -200,6 +200,9 @@ class Feeder:
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not minimum <= value <= maximum:
                 raise ValueError(f"{key.replace('_', ' ').title()} must be between {minimum} and {maximum}.")
             cleaned[key] = value
+        if cleaned["angle"] != int(cleaned["angle"]):
+            raise ValueError("Servo angle must be a whole number of degrees.")
+        cleaned["angle"] = int(cleaned["angle"])
         if cleaned["full_distance"] >= cleaned["empty_distance"]:
             raise ValueError("Empty distance must be greater than full distance.")
         cleaned["calibrated"] = True
@@ -356,6 +359,11 @@ class Feeder:
                 self.apply_alarm(parse_distance(response))
             return response
 
+    def angle_acknowledged(self, response):
+        if self.angle_command.startswith('SERVO_ANGLE:'):
+            return response == 'SERVO_ANGLE_OK'
+        return self.acknowledged(response)
+
     def begin_feed(self, trigger="Manual", portion="Manual portion", settings=None):
         if not self.feed_lock.acquire(blocking=False):
             return False
@@ -374,8 +382,8 @@ class Feeder:
         try:
             if self.angle_command:
                 response = self.send(self.angle_command.format(angle=settings["angle"]))
-                if not self.acknowledged(response):
-                    raise RuntimeError("Servo angle was not acknowledged.")
+                if not self.angle_acknowledged(response):
+                    raise RuntimeError("Servo angle not confirmed. Upload the updated Arduino sketch.")
             # Mark before writing so a timed-out acknowledgement still triggers STOP.
             started = True
             response = self.send("SERVO_ROTATE")
@@ -439,6 +447,10 @@ class Feeder:
                 response = None
                 cleanup_response = None
                 try:
+                    if component == "servo" and self.angle_command:
+                        angle_reply = self.send(self.angle_command.format(angle=self.settings()["angle"]))
+                        if not self.angle_acknowledged(angle_reply):
+                            raise ValueError("Servo angle not confirmed. Upload the updated Arduino sketch.")
                     response = self.send(command)
                     if not self.acknowledged(response):
                         raise ValueError(response or "No acknowledgement from controller.")

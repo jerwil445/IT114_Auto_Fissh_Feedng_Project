@@ -135,7 +135,7 @@ function fillSettings(data) {
   $('duration').value = settings.duration;
   $('full-distance').value = settings.full_distance;
   $('empty-distance').value = settings.empty_distance;
-  $('angle-note').textContent = data.angle_supported ? 'The saved angle is sent to your controller before dispensing.' : 'Angle is saved as a preference. Your current firmware interface uses its own servo angle; an angle command must be configured to apply this setting.';
+  $('angle-note').textContent = data.angle_supported ? 'Choose 60 degrees (Narrow) to 75 degrees (Wide), then Save Settings. The selected angle applies on the next feeding or servo test. Upload the updated Arduino sketch first.' : 'Angle is saved as a preference. Your current firmware interface uses its own servo angle; an angle command must be configured to apply this setting.';
   slots = structuredClone(settings.slots);
   slots.forEach(slot => {
     slot._originalTime = slot.time;
