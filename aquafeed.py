@@ -62,6 +62,7 @@ class Feeder:
         self.state_lock = threading.RLock()
         self.worker = None
         self.state = {"connected": False, "port": None, "operation": "Ready", "valve": "Unknown", "distance": None, "level": None, "updated_at": None}
+        self.valve_command_state = None
         self.sensor_sample = None
         self.last_connection = None
         self.calibration_sent = None
@@ -90,6 +91,32 @@ class Feeder:
         if not 0 <= settings["full_distance"] < settings["empty_distance"]:
             settings["full_distance"] = DEFAULTS["full_distance"]
         return settings
+
+    def valve_snapshot(self):
+        with self.state_lock:
+            record = self.valve_command_state
+            connected = self.state['connected']
+        if not connected:
+            return {'status': 'unknown', 'detail': 'Device disconnected', 'age_seconds': None}
+        if record is None:
+            return {'status': 'unknown', 'detail': 'No servo command confirmed yet', 'age_seconds': None}
+        status, detail, changed_at = record
+        return {'status': status, 'detail': detail,
+                'age_seconds': round(max(0, time.monotonic() - changed_at), 1)}
+
+    def record_valve_command(self, command, reply=None, pending=False):
+        if command not in ('SERVO_ROTATE', 'SERVO_STOP'):
+            return
+        if pending:
+            status = 'starting' if command == 'SERVO_ROTATE' else 'stopping'
+            detail = 'Waiting for controller acknowledgement'
+        elif reply == ('SERVO_ROTATING' if command == 'SERVO_ROTATE' else 'SERVO_STOPPED'):
+            status = 'running' if command == 'SERVO_ROTATE' else 'stopped'
+            detail = 'Start command acknowledged' if status == 'running' else 'Stop command acknowledged'
+        else:
+            status, detail = 'unknown', 'Servo command not confirmed - check the controller'
+        with self.state_lock:
+            self.valve_command_state = (status, detail, time.monotonic())
 
     def record_sensor(self, distance, connected, sampled_at=None):
         # Timestamp this measurement, not a later schedule/database update.
@@ -315,7 +342,13 @@ class Feeder:
                         for led in ("MORNING_OFF", "AFTERNOON_OFF", "NIGHT_OFF"):
                             self.raw_send(led)
                     return "ALARM_PROTECTED"
-            response = self.raw_send(command)
+            self.record_valve_command(command, pending=True)
+            try:
+                response = self.raw_send(command)
+            except Exception:
+                self.record_valve_command(command)
+                raise
+            self.record_valve_command(command, response)
             if command == 'LCD_TEST':
                 self.lcd_idle_command = None
             if command == "DISTANCE":
@@ -462,6 +495,8 @@ class Feeder:
         connected = connection["connected"]
         if connected != self.last_connection:
             self.log("system", "Info" if connected else "Warning", "Arduino connected." if connected else "Arduino disconnected. Check USB and power.")
+            with self.state_lock:
+                self.valve_command_state = None
             self.last_connection = connected
         distance = None
         sensor_read_started = time.monotonic()

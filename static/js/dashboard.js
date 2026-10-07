@@ -30,7 +30,6 @@ function renderDashboard(data) {
   $('next-feeding').textContent = data.next ? `${formatDate(data.next.at)} · ${data.next.name}` : 'No automatic feeding scheduled';
   $('next-portion').textContent = data.next ? data.next.portion : 'Enable automation in Feeder Control';
   renderHopper(data.level);
-  $('valve').textContent = data.valve;
   if (data.connected && data.hopper_empty) {
     $('operation').textContent = 'FEED EMPTY - PLEASE REFILL';
     $('operation-detail').textContent = data.alarm_confirmed
@@ -71,7 +70,6 @@ function onMonitorError() {
   $('operation').textContent = 'Connection unknown';
   $('operation-detail').textContent = 'The server is unavailable. Reconnecting automatically.';
   renderHopper(null);
-  $('valve').textContent = 'Unknown';
 }
 setInterval(countdown, 1000);
 
@@ -80,11 +78,18 @@ refresh();
 // Independent, lightweight sensor updates; no smoothing that could hide an empty reading.
 let sensorSnapshot = null;
 let sensorReceivedAt = 0;
+function renderValve(sample, elapsed) {
+  const recent = Number.isFinite(sample?.age_seconds) && sample.age_seconds + elapsed <= 5;
+  const available = recent && !['disconnected', 'stale', 'unavailable', 'waiting'].includes(sample?.status);
+  const labels = {running:'Open', stopped:'Closed'};
+  $('valve').textContent = available ? labels[sample?.valve?.status] || '--' : '--';
+}
 function renderSensor() {
   const sample = sensorSnapshot;
   const elapsed = (performance.now() - sensorReceivedAt) / 1000;
   const age = sample && Number.isFinite(sample.age_seconds) ? sample.age_seconds + elapsed : null;
   const live = sample?.status === 'live' && age !== null && age <= 5 && Number.isFinite(sample.distance);
+  renderValve(sample, elapsed);
   $('distance').textContent = live ? sample.distance.toFixed(1) : '--';
   const messages = {waiting:'Waiting for first sensor reading', disconnected:'Device disconnected',
     no_echo:'No valid echo - check the sensor', stale:'Reading expired - waiting for an update',
