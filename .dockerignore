@@ -1,0 +1,21 @@
+.git
+.codex
+.agents
+.aws
+.env
+.env.*
+instance
+__pycache__
+*.pyc
+.venv
+venv
+node_modules
+landngpage
+landingpage
+*.sqlite3
+*.sqlite3-*
+*.log
+Arduino
+*.mp4
+# Retain the application's served videos if a page still uses them.
+!static/media/*.mp4

@@ -1,0 +1,44 @@
+name: aquafeed
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aquafeed
+      POSTGRES_USER: aquafeed
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Create .env.docker from .env.docker.example and set POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aquafeed -d aquafeed"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-5000}:5000"
+    environment:
+      DATABASE_URL: postgresql://aquafeed@db:5432/aquafeed
+      PGPASSWORD: ${jerwilumpad445:?Set jerwilumpad445 in .env.docker}
+      ARDUINO_PORT: /dev/ttyACM0
+      ARDUINO_PORTS: /dev/ttyACM0
+      FEEDER_TIMEZONE: Asia/Manila
+      TZ: Asia/Manila
+    volumes:
+      - app_instance:/app/instance
+
+volumes:
+  postgres_data:
+  app_instance:

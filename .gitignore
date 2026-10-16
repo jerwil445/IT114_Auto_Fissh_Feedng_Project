@@ -1,3 +1,6 @@
 
 # Local session signing key
 instance/
+
+# Docker database credentials
+.env.docker

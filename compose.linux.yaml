@@ -1,0 +1,7 @@
+# Native Linux / USB forwarded into Linux only; this is not a COM4 mapping.
+services:
+  web:
+    devices:
+      - "${ARDUINO_DEVICE:-/dev/ttyACM0}:/dev/ttyACM0"
+    group_add:
+      - "${ARDUINO_GID:?Set ARDUINO_GID to the numeric group owning your serial device}"
