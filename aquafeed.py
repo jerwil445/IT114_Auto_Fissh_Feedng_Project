@@ -142,10 +142,27 @@ class Feeder:
         with self.db() as db:
             db.execute("INSERT INTO events(timestamp,kind,trigger,portion,status,message) VALUES(?,?,?,?,?,?)", (self.now().isoformat(), kind, trigger, portion, status, message))
 
-    def history(self, before=None, limit=15, kind=None, page=None):
+    def history(self, before=None, limit=15, kind=None, page=None, status=None, trigger=None, start=None, end=None, search=None):
         if limit < 1:
             raise ValueError("Limit must be 1 or greater.")
 
+        if kind not in (None, 'feeding', 'system'):
+            raise ValueError("Invalid activity type.")
+        allowed_statuses = ('Successful', 'Failed') if kind == 'feeding' else ('Info', 'Warning', 'Failed') if kind == 'system' else ('Successful', 'Failed', 'Info', 'Warning')
+        if status and status not in allowed_statuses:
+            raise ValueError("Invalid status for this activity type.")
+        if trigger and (kind != 'feeding' or trigger not in ('Automatic', 'Manual')):
+            raise ValueError("Feeding method must be Automatic or Manual.")
+        bounds = []
+        for value in (start, end):
+            try:
+                bounds.append(datetime.strptime(value, '%Y-%m-%d').replace(tzinfo=self.zone) if value else None)
+            except (ValueError, TypeError):
+                raise ValueError("Use valid dates in YYYY-MM-DD format.")
+        if bounds[0] and bounds[1] and bounds[0] > bounds[1]:
+            raise ValueError("End date must be on or after start date.")
+        if search and len(search) > 100:
+            raise ValueError("Search must be 100 characters or fewer.")
         with self.db() as db:
             where = ["1=1"]
             params = []
@@ -157,6 +174,20 @@ class Feeder:
                 where.append("kind = ?")
                 params.append(kind)
 
+            for column, value in (('status', status), ('trigger', trigger)):
+                if value:
+                    where.append(f"{column} = ?")
+                    params.append(value)
+            if search:
+                where.append("(LOWER(message) LIKE ? ESCAPE '!' OR LOWER(COALESCE(portion, '')) LIKE ? ESCAPE '!')")
+                pattern = '%' + search.lower().replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
+                params.extend((pattern, pattern))
+            for boundary, operator in ((bounds[0], '>='), (bounds[1] + timedelta(days=1) if bounds[1] else None, '<')):
+                if boundary:
+                    expression = "CAST(timestamp AS TIMESTAMPTZ)" if self.store.postgres else "julianday(timestamp)"
+                    parameter = "CAST(? AS TIMESTAMPTZ)" if self.store.postgres else "julianday(?)"
+                    where.append(f"{expression} {operator} {parameter}")
+                    params.append(boundary.isoformat())
             if page is not None:
                 if page < 1:
                     raise ValueError("Page must be 1 or greater.")

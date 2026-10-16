@@ -15,9 +15,9 @@ COPY . .
 RUN useradd --uid 10001 --create-home aquafeed && \
     mkdir -p /app/instance && \
     chown -R aquafeed:aquafeed /app
+
 USER aquafeed
 
 EXPOSE 5000
 
-# One process runs both Flask and the feeder scheduler.
 CMD ["python", "app.py"]

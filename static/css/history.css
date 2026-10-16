@@ -31,3 +31,10 @@
 .supply-icon{display:none}
 .supply .button{margin-left:0}
 }
+
+.history-filter-panel{margin-bottom:20px}
+.history-filter-grid{display:flex;align-items:end;gap:14px;flex-wrap:wrap}
+.history-filter-grid label{display:grid;gap:7px;font-size:12px;flex:1 1 130px}
+.history-filter-grid input,.history-filter-grid select{width:100%;min-height:40px;border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--panel);color:var(--ink);font:inherit;color-scheme:light dark}
+.history-filter-grid [hidden],.history-filter-error[hidden]{display:none}
+.history-filter-error{color:#c84a3b;font-size:12px;margin:12px 0 0}

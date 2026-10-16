@@ -92,8 +92,33 @@ $('theme-toggle')?.addEventListener('click', () => {
 
 const mobileNavToggle = $('mobile-nav-toggle');
 const appSidebar = $('app-sidebar');
+const sidebarRail = $('sidebar-rail');
 const sidebarBackdrop = $('sidebar-backdrop');
 const mobileNavMedia = window.matchMedia('(max-width: 850px)');
+let peekCloseTimer = null;
+let railHovered = false;
+function openSidebarPeek() {
+  clearTimeout(peekCloseTimer);
+  if (!mobileNavMedia.matches) document.body.classList.add('sidebar-peek-open');
+}
+function closeSidebarPeek() {
+  clearTimeout(peekCloseTimer);
+  document.body.classList.remove('sidebar-peek-open');
+}
+function schedulePeekClose() {
+  clearTimeout(peekCloseTimer);
+  peekCloseTimer = setTimeout(() => {
+    if (!railHovered && !sidebarRail.contains(document.activeElement)) closeSidebarPeek();
+  }, 350);
+}
+sidebarRail.addEventListener('pointerenter', event => {
+  if (event.pointerType === 'touch' || mobileNavMedia.matches) return;
+  railHovered = true;
+  openSidebarPeek();
+});
+sidebarRail.addEventListener('pointerleave', () => {railHovered = false; schedulePeekClose();});
+sidebarRail.addEventListener('focusin', openSidebarPeek);
+sidebarRail.addEventListener('focusout', schedulePeekClose);
 
 function closeMobileNav(returnFocus = false) {
   appSidebar.classList.remove('is-open');
@@ -105,7 +130,6 @@ function closeMobileNav(returnFocus = false) {
   appSidebar.setAttribute('aria-hidden', String(mobileNavMedia.matches));
   if (returnFocus) mobileNavToggle.focus();
 }
-
 function openMobileNav() {
   if (!mobileNavMedia.matches) return;
   sidebarBackdrop.hidden = false;
@@ -117,25 +141,28 @@ function openMobileNav() {
   requestAnimationFrame(() => appSidebar.classList.add('is-open'));
   appSidebar.querySelector('nav a')?.focus();
 }
-
 mobileNavToggle?.addEventListener('click', () => {
   if (mobileNavToggle.getAttribute('aria-expanded') === 'true') closeMobileNav(true);
   else openMobileNav();
 });
 sidebarBackdrop?.addEventListener('click', () => closeMobileNav(true));
-appSidebar.querySelectorAll('nav a').forEach(link => link.addEventListener('click', () => closeMobileNav()));
+appSidebar.querySelectorAll('nav a').forEach(link => link.addEventListener('click', () => {
+  if (mobileNavMedia.matches) closeMobileNav();
+}));
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && mobileNavToggle.getAttribute('aria-expanded') === 'true') closeMobileNav(true);
+  if (event.key !== 'Escape') return;
+  if (mobileNavToggle.getAttribute('aria-expanded') === 'true') closeMobileNav(true);
+  else {
+    if (sidebarRail.contains(document.activeElement)) document.activeElement.blur();
+    closeSidebarPeek();
+  }
 });
-mobileNavMedia.addEventListener('change', event => {
+mobileNavMedia.addEventListener('change', () => {
+  railHovered = false;
+  closeSidebarPeek();
   closeMobileNav();
-  appSidebar.inert = event.matches;
-  appSidebar.setAttribute('aria-hidden', String(event.matches));
 });
-if (mobileNavMedia.matches) {
-  appSidebar.inert = true;
-  appSidebar.setAttribute('aria-hidden', 'true');
-}
+if (mobileNavMedia.matches) closeMobileNav();
 
 $('today').textContent = new Date().toLocaleDateString('en-US', {timeZone:'Asia/Manila', weekday:'short', month:'short', day:'numeric', year:'numeric'});
 

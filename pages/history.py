@@ -29,6 +29,11 @@ def create_blueprint(feeder):
                 before=before,
                 limit=limit,
                 kind=kind,
+                status=request.args.get('status') or None,
+                trigger=request.args.get('trigger') or None,
+                start=request.args.get('start') or None,
+                end=request.args.get('end') or None,
+                search=(request.args.get('search') or '').strip() or None,
                 page=page if before is None and has_page else None,
             ))
         except ValueError as exc:
