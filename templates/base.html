@@ -7,6 +7,7 @@
   <script>try{const saved=localStorage.getItem('aquafeed-theme');document.documentElement.dataset.theme=saved==='dark'||(!saved&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'}catch{document.documentElement.dataset.theme=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css', v='3') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/' + page + '.css', v='2') }}">
+  {% if page in ['dashboard', 'control'] %}<link rel="stylesheet" href="{{ url_for('static', filename='css/feed-button.css', v='1') }}">{% endif %}
   <script src="{{ url_for('static', filename='js/common.js', v='3') }}" defer></script>
   <script src="{{ url_for('static', filename='js/' + page + '.js') }}" defer></script>
 </head>
