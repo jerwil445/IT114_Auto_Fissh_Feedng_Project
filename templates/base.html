@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AquaFeed Pro · {{ {'dashboard':'Monitoring Dashboard','control':'Feeder Control','history':'Feeding History','hardware':'Hardware Tests'}[page] }}</title>
   <script>try{const saved=localStorage.getItem('aquafeed-theme');document.documentElement.dataset.theme=saved==='dark'||(!saved&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'}catch{document.documentElement.dataset.theme=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}</script>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css', v='3') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css', v='5') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/' + page + '.css', v='2') }}">
   {% if page in ['dashboard', 'control'] %}<link rel="stylesheet" href="{{ url_for('static', filename='css/feed-button.css', v='1') }}">{% endif %}
-  <script src="{{ url_for('static', filename='js/common.js', v='3') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/common.js', v='4') }}" defer></script>
   <script src="{{ url_for('static', filename='js/' + page + '.js') }}" defer></script>
 </head>
 <body data-page="{{ page }}">
@@ -34,7 +34,13 @@
       <button type="button" id="mobile-nav-toggle" class="mobile-nav-toggle" aria-label="Open navigation menu" aria-controls="app-sidebar" aria-expanded="false"><span aria-hidden="true">☰</span></button>
       <span class="topbar-context">Aquarium workspace <span class="slash">/</span> <b>{{ {'dashboard':'Overview','control':'Controls & schedule','history':'Activity & logs','hardware':'Hardware diagnostics'}[page] }}</b></span>
       <div class="topbar-actions">
-        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" aria-pressed="false">🌙 Dark mode</button>
+        <div class="theme-control">
+          <button type="button" id="theme-toggle" class="theme-switch" role="switch" aria-label="Dark mode" aria-checked="false" aria-describedby="theme-status"><span class="theme-switch-knob" aria-hidden="true">
+            <svg class="theme-icon theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+            <svg class="theme-icon theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M20.9 13.4A9 9 0 0 1 10.6 3.1a9 9 0 1 0 10.3 10.3Z"/></svg>
+          </span></button>
+          <span id="theme-status" class="theme-status" role="status" aria-live="polite">Light mode</span>
+        </div>
         <span id="connection" class="badge neutral" role="status">Checking device…</span>
       </div>
     </header>

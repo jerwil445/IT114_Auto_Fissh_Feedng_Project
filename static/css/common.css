@@ -84,8 +84,7 @@ nav a:hover{background:var(--panel-alt)}
 .topbar-actions{display:flex;align-items:center;gap:12px}
 .mobile-nav-toggle{display:none;flex:0 0 40px;width:40px;height:40px;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-size:20px;line-height:1}
 .sidebar-backdrop{display:none}
-.theme-toggle{border:1px solid var(--line);background:var(--toggle-bg);color:var(--ink);border-radius:999px;padding:8px 12px;font-size:11px;font-weight:700;transition:background-color .2s ease,transform .2s ease}
-.theme-toggle:hover{transform:translateY(-1px)}
+
 .slash{margin:0 15px;color:#bcc7c1}
 .badge{display:inline-flex;align-items:center;gap:7px;border-radius:30px;padding:7px 11px;font-size:11px;font-weight:600;white-space:nowrap}
 .badge:before{content:'';height:6px;width:6px;border-radius:50%;background:currentColor}
@@ -203,4 +202,59 @@ footer{flex-direction:column;gap:8px}
 }
 @media(prefers-reduced-motion:reduce){
   .sidebar,.sidebar-shadow,.sidebar-peek-scrim,.sidebar .nav-label,.sidebar-bottom{transition:none!important}
+}
+
+/* Native iOS-style theme switch: on = dark mode. */
+.theme-control{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.theme-status{font-size:11px;font-weight:600;color:var(--ink);white-space:nowrap;min-width:61px}
+.theme-switch{
+  --switch-accent:#087f73;
+  position:relative;display:block;flex:0 0 55px;width:55px;height:34px;
+  padding:0;border:0;border-radius:999px;background:#d2d5d8;
+  cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  transition:background-color 360ms ease;
+}
+.theme-switch[aria-checked="true"]{background:var(--switch-accent)}
+.theme-switch-knob{
+  position:absolute;display:block;left:3px;top:3px;width:28px;height:28px;
+  border-radius:999px;background:#fff;pointer-events:none;
+  box-shadow:0 3px 8px rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.9);
+  transform:translateX(0);
+  transition:transform 600ms cubic-bezier(.32,.72,0,1),width 180ms ease-out;
+}
+@supports(transition-timing-function:linear(0,1)){
+  .theme-switch-knob{transition-timing-function:linear(0,.2 8%,.55 20%,.83 35%,.97 50%,1.02 65%,1.01 80%,1),ease-out}
+}
+.theme-switch[aria-checked="true"] .theme-switch-knob{transform:translateX(21px)}
+.theme-switch:active .theme-switch-knob{width:34px;transition-duration:120ms,120ms;transition-timing-function:ease-out,ease-out}
+.theme-switch[aria-checked="true"]:active .theme-switch-knob{transform:translateX(15px)}
+.theme-switch:focus-visible{outline:3px solid #f0b95e;outline-offset:5px}
+@media(max-width:850px){
+  .topbar{height:84px}
+  .theme-control{flex-direction:column;gap:2px}
+  .theme-switch{flex-basis:34px}
+  .theme-status{font-size:10px;text-align:center;line-height:12px}
+}
+@media(max-width:520px){
+  .topbar-context{display:none}
+  .topbar-actions{margin-left:auto}
+  .topbar-actions #connection{max-width:130px;overflow:hidden}
+}
+@media(prefers-reduced-motion:reduce){
+  .theme-switch,.theme-switch-knob{transition:none!important}
+  body{transition:none}
+}
+
+/* Decorative icons follow the accessible switch state. */
+.theme-switch-knob{display:grid;place-items:center}
+.theme-icon{grid-area:1/1;display:block;flex-shrink:0}
+.theme-icon-sun{color:#a66a00}
+.theme-icon-moon{color:#087f73;display:none}
+.theme-switch[aria-checked="true"] .theme-icon-sun{display:none}
+.theme-switch[aria-checked="true"] .theme-icon-moon{display:block}
+
+/* Keep the theme status available to screen readers without visible text. */
+.theme-status{
+  position:absolute;width:1px;height:1px;min-width:0;padding:0;margin:-1px;
+  overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;
 }

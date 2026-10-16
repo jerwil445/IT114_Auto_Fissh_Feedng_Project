@@ -7,17 +7,17 @@ const formatTime = value => {
   const [hour, minute] = value.split(':').map(Number);
   return `${hour % 12 || 12}:${String(minute).padStart(2,'0')} ${hour >= 12 ? 'PM' : 'AM'}`;
 };
-function applyTheme(theme) {
+function applyTheme(theme, persist = false) {
   const normalized = theme === 'dark' ? 'dark' : 'light';
   document.documentElement.dataset.theme = normalized;
   document.body.dataset.theme = normalized;
   const button = $('theme-toggle');
   if (button) {
-    button.textContent = normalized === 'dark' ? '☀️ Light mode' : '🌙 Dark mode';
-    button.setAttribute('aria-pressed', String(normalized === 'dark'));
+    button.setAttribute('aria-checked', String(normalized === 'dark'));
+    $('theme-status').textContent = normalized === 'dark' ? 'Dark mode' : 'Light mode';
   }
   try {
-    localStorage.setItem(THEME_STORAGE_KEY, normalized);
+    if (persist) localStorage.setItem(THEME_STORAGE_KEY, normalized);
   } catch (error) {
     // Ignore storage errors in restricted contexts.
   }
@@ -32,7 +32,9 @@ function initialiseTheme() {
   }
   const media = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
   media?.addEventListener?.('change', event => {
-    if (!localStorage.getItem(THEME_STORAGE_KEY)) applyTheme(event.matches ? 'dark' : 'light');
+    try {
+      if (!localStorage.getItem(THEME_STORAGE_KEY)) applyTheme(event.matches ? 'dark' : 'light');
+    } catch (error) { applyTheme(event.matches ? 'dark' : 'light'); }
   });
 }
 function notice(message, error = false) {
@@ -87,7 +89,7 @@ initialiseTheme();
 
 $('theme-toggle')?.addEventListener('click', () => {
   const nextTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
-  applyTheme(nextTheme);
+  applyTheme(nextTheme, true);
 });
 
 const mobileNavToggle = $('mobile-nav-toggle');
